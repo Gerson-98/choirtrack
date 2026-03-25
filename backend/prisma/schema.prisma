@@ -1,0 +1,46 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id       Int      @id @default(autoincrement())
+  username String   @unique
+  password String
+  role     String
+}
+
+model Member {
+  id          Int                 @id @default(autoincrement())
+  name        String
+  gender      String
+  voice       String              @default("soprano")
+  attendances AttendanceRecord[]
+}
+
+model Session {
+  id          Int                 @id @default(autoincrement())
+  date        DateTime            @db.Date
+  type        String
+  updatedAt   DateTime?           @updatedAt
+  lastSavedBy String?
+  attendances AttendanceRecord[]
+
+  @@unique([date, type])
+}
+
+model AttendanceRecord {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  sessionId Int
+  isPresent Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  member    Member   @relation(fields: [memberId], references: [id])
+  session   Session  @relation(fields: [sessionId], references: [id])
+
+  @@unique([memberId, sessionId])
+}
