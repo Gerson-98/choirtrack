@@ -4,7 +4,7 @@ import { es } from 'date-fns/locale';
 import { Star, ClipboardList, LogOut, RefreshCw, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from './api';
-import { toLocalDateString, toGuatemalaTime } from './utils';
+import { toLocalDateString } from './utils';
 
 interface SessionSummary {
     type: string;
