@@ -737,6 +737,19 @@ export default function Dashboard({ onLogout }: Props) {
                         </span>
                     </div>
                 ))}
+                <div
+                    onClick={() => navigate('/users')}
+                    style={{
+                        flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: '4px', cursor: 'pointer',
+                        borderBottom: '2px solid transparent',
+                    }}
+                >
+                    <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>👥</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                        Usuarios
+                    </span>
+                </div>
             </div>
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

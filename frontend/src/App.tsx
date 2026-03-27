@@ -6,6 +6,7 @@ import SessionPicker from './SessionPicker';
 import Eligibility from './Eligibility';
 import Dashboard from './Dashboard';
 import Presentacion from './Presentacion';
+import Users from './Users';
 
 const VALID_ROLES = ['director', 'oraciones', 'repasos'];
 
@@ -81,6 +82,14 @@ function App() {
         <Route
           path="/presentacion"
           element={isAuthenticated ? <Presentacion /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/users"
+          element={
+            isAuthenticated && role === 'director'
+              ? <Users onLogout={handleLogout} />
+              : <Navigate to="/" />
+          }
         />
       </Routes>
     </Router>

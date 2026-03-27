@@ -81,8 +81,9 @@ export default function Today({ role, onLogout, onBack }: Props) {
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>('list');
-  const [openVoices, setOpenVoices] = useState<Set<string>>(new Set(VOICE_ORDER));
+  const [openVoices, setOpenVoices] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()));
   const [alreadySaved, setAlreadySaved] = useState(false);
   const [lastSavedBy, setLastSavedBy] = useState<string | null>(null);
@@ -154,8 +155,12 @@ export default function Today({ role, onLogout, onBack }: Props) {
   };
 
   const handleSave = async () => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setSaveError('No se pudo obtener la sesión. Recarga la página.');
+      return;
+    }
     setSaving(true);
+    setSaveError(null);
     try {
       await api.post('/attendance/save', {
         sessionId,
@@ -165,8 +170,9 @@ export default function Today({ role, onLogout, onBack }: Props) {
       setAlreadySaved(true);
       setLastSavedBy(getUsernameFromToken());
       setSessionUpdatedAt(new Date().toISOString());
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setSaveError(e?.response?.data?.message ?? 'Error al guardar. Intenta de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -319,6 +325,16 @@ export default function Today({ role, onLogout, onBack }: Props) {
             {saving ? 'Guardando…' : 'Sí, guardar ✓'}
           </button>
         </div>
+        {saveError && (
+          <div style={{
+            position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+            width: 'calc(100% - 32px)', maxWidth: '398px',
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px',
+            padding: '10px 14px', fontSize: '0.85rem', color: '#DC2626', zIndex: 21,
+          }}>
+            {saveError}
+          </div>
+        )}
       </>
     );
   }

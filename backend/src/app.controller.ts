@@ -43,7 +43,7 @@ export class AppController {
     @Param('date') date: string,
     @Query('type') type?: string,
   ) {
-    return this.appService.getSession(type || req.user.role, date, false);
+    return this.appService.getSession(type || req.user.role, date, true);
   }
 
   // Toggle individual (mantener compatibilidad)
