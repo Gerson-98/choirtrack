@@ -649,62 +649,92 @@ export default function Dashboard({ onLogout }: Props) {
                 )}
 
                 {/* ── TAB: AUDITORÍA ── */}
-                {activeTab === 'auditoria' && (
-                    <>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            Registro de asistencias de la semana — {weekLabel}
-                        </p>
-                        {auditData.length === 0 ? (
-                            <div className="glass-panel" style={{ padding: '24px', textAlign: 'center' }}>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Sin registros esta semana</p>
+                {activeTab === 'auditoria' && (() => {
+                    const SESSION_META: Record<string, { label: string; emoji: string }> = {
+                        am_prayer: { label: 'Oración 5am', emoji: '🌅' },
+                        pm_prayer: { label: 'Oración 6pm', emoji: '🌙' },
+                        rehearsal: { label: 'Ensayo', emoji: '🎵' },
+                    };
+                    const formatTime12h = (utcDate: string) => {
+                        const d = new Date(utcDate);
+                        const local = new Date(d.getTime() - 6 * 60 * 60 * 1000);
+                        const h = local.getUTCHours();
+                        const m = local.getUTCMinutes();
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        const h12 = h % 12 || 12;
+                        return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+                    };
+                    const formatDate = (isoDate: string) => {
+                        const d = new Date(isoDate);
+                        const day = DAY_NAMES[d.getUTCDay()];
+                        const num = d.getUTCDate();
+                        const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+                        const mon = months[d.getUTCMonth()];
+                        return `${day} ${num}/${mon}`;
+                    };
+                    const savedEntries = auditData.filter(e => !!e.lastSavedBy);
+                    return (
+                        <>
+                            <div style={{ marginBottom: '12px' }}>
+                                <p style={{ fontWeight: 700, fontSize: '1rem', margin: '0 0 2px' }}>📋 Auditoría de la semana</p>
+                                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                                    {weekLabel}
+                                </p>
                             </div>
-                        ) : (
-                            <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                                {[...auditData].reverse().map((entry, idx) => {
-                                    const d = new Date(entry.date);
-                                    const dayLabel = DAY_NAMES[d.getUTCDay()];
-                                    const dateLabel = `${dayLabel} ${d.getUTCDate()}`;
-                                    const sessionMeta: Record<string, { label: string; emoji: string }> = {
-                                        am_prayer: { label: 'Oración 5am', emoji: '🌅' },
-                                        pm_prayer: { label: 'Oración 6pm', emoji: '🌙' },
-                                        rehearsal: { label: 'Ensayo', emoji: '🎵' },
-                                    };
-                                    const meta = sessionMeta[entry.type] ?? { label: entry.type, emoji: '📋' };
-                                    return (
-                                        <div key={idx} style={{
-                                            padding: '12px 16px',
-                                            borderBottom: idx < auditData.length - 1 ? '1px solid var(--card-border)' : 'none',
-                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                        }}>
-                                            <div>
-                                                <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '2px' }}>
-                                                    {meta.emoji} {meta.label}
-                                                </div>
-                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                                    {dateLabel}
-                                                </div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                    {entry.lastSavedBy
-                                                        ? `Registrado por ${entry.lastSavedBy}${entry.updatedAt ? ` · ${toGuatemalaTime(entry.updatedAt)}` : ''}`
-                                                        : '—'}
-                                                </div>
-                                            </div>
-                                            <div style={{
-                                                textAlign: 'right',
-                                                fontWeight: 700,
-                                                fontSize: '1.4rem',
-                                                color: entry.presentCount > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
+                            {savedEntries.length === 0 ? (
+                                <div className="glass-panel" style={{ padding: '24px', textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Sin registros esta semana</p>
+                                </div>
+                            ) : (
+                                <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
+                                    {/* Cabecera de tabla */}
+                                    <div style={{
+                                        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                                        padding: '8px 14px',
+                                        background: '#F5F4FB',
+                                        borderBottom: '1px solid var(--card-border)',
+                                    }}>
+                                        {['Fecha', 'Sesión', 'Por', 'Hora'].map(h => (
+                                            <span key={h} style={{
+                                                fontSize: '0.68rem', fontWeight: 700,
+                                                color: 'var(--text-muted)', textTransform: 'uppercase',
+                                                letterSpacing: '0.04em',
+                                            }}>{h}</span>
+                                        ))}
+                                    </div>
+                                    {savedEntries.map((entry, idx) => {
+                                        const meta = SESSION_META[entry.type] ?? { label: entry.type, emoji: '📋' };
+                                        return (
+                                            <div key={idx} style={{
+                                                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                                                padding: '11px 14px', alignItems: 'center',
+                                                borderBottom: idx < savedEntries.length - 1 ? '1px solid var(--card-border)' : 'none',
+                                                background: idx % 2 === 0 ? '#fff' : '#FAFAFA',
                                             }}>
-                                                {entry.presentCount}
-                                                <div style={{ fontSize: '0.68rem', fontWeight: 400, color: 'var(--text-muted)' }}>presentes</div>
+                                                <span style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>
+                                                    {formatDate(entry.date as unknown as string)}
+                                                </span>
+                                                <span style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>
+                                                    {meta.emoji} {meta.label}
+                                                </span>
+                                                <span style={{
+                                                    fontSize: '0.82rem', fontWeight: 600,
+                                                    color: 'var(--accent-primary)',
+                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                }}>
+                                                    {entry.lastSavedBy}
+                                                </span>
+                                                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                                    {entry.updatedAt ? formatTime12h(entry.updatedAt as unknown as string) : '—'}
+                                                </span>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </>
-                )}
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
             </div>
 
             {/* Nav inferior */}

@@ -82,10 +82,11 @@ export default function Today({ role, onLogout, onBack }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
   const [screen, setScreen] = useState<Screen>('list');
   const [openVoices, setOpenVoices] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<Date>(startOfDay(new Date()));
-  const [alreadySaved, setAlreadySaved] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [lastSavedBy, setLastSavedBy] = useState<string | null>(null);
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -103,7 +104,8 @@ export default function Today({ role, onLogout, onBack }: Props) {
   async function loadData(date: Date) {
     setLoading(true);
     setScreen('list');
-    setAlreadySaved(false);
+    setIsEditing(false);
+    setSavedFlash(false);
     setLastSavedBy(null);
     setSessionUpdatedAt(null);
     try {
@@ -123,11 +125,11 @@ export default function Today({ role, onLogout, onBack }: Props) {
       );
       setSelected(presentIds);
 
-      // Activar alreadySaved si ya hay registros presentes
-      if (presentIds.size > 0) setAlreadySaved(true);
-
-      // Cargar metadatos de última actualización
-      if (sessionRes.data.lastSavedBy) setLastSavedBy(sessionRes.data.lastSavedBy);
+      // isEditing = sesión ya fue guardada anteriormente
+      if (sessionRes.data.lastSavedBy) {
+        setIsEditing(true);
+        setLastSavedBy(sessionRes.data.lastSavedBy);
+      }
       if (sessionRes.data.updatedAt) setSessionUpdatedAt(sessionRes.data.updatedAt);
     } catch (e) {
       console.error(e);
@@ -166,10 +168,21 @@ export default function Today({ role, onLogout, onBack }: Props) {
         sessionId,
         presentMemberIds: Array.from(selected),
       });
-      setScreen('success');
-      setAlreadySaved(true);
-      setLastSavedBy(getUsernameFromToken());
-      setSessionUpdatedAt(new Date().toISOString());
+      const username = getUsernameFromToken();
+      const now = new Date().toISOString();
+      setLastSavedBy(username);
+      setSessionUpdatedAt(now);
+      setIsEditing(true);
+      if (isEditing) {
+        // Modo edición: flash breve, luego pantalla de éxito
+        setSavedFlash(true);
+        setTimeout(() => {
+          setSavedFlash(false);
+          setScreen('success');
+        }, 1500);
+      } else {
+        setScreen('success');
+      }
     } catch (e: any) {
       console.error(e);
       setSaveError(e?.response?.data?.message ?? 'Error al guardar. Intenta de nuevo.');
@@ -378,18 +391,16 @@ export default function Today({ role, onLogout, onBack }: Props) {
             >
               ✏️ Editar lista
             </button>
-            {onBack && (
-              <button
-                onClick={onBack}
-                style={{
-                  flex: 1, padding: '12px 0', borderRadius: '10px',
-                  background: '#F0EEF8', border: '1px solid #E5E7EB',
-                  color: 'var(--text-muted)', fontSize: '0.95rem', cursor: 'pointer',
-                }}
-              >
-                ← Volver
-              </button>
-            )}
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                flex: 1, padding: '12px 0', borderRadius: '10px',
+                background: '#F0EEF8', border: '1px solid #E5E7EB',
+                color: 'var(--text-muted)', fontSize: '0.95rem', cursor: 'pointer',
+              }}
+            >
+              🏠
+            </button>
           </div>
         </div>
       </>
@@ -573,6 +584,19 @@ export default function Today({ role, onLogout, onBack }: Props) {
         })}
       </div>
 
+      {/* Flash de guardado en modo edición */}
+      {savedFlash && (
+        <div style={{
+          position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)', maxWidth: '398px',
+          background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: '8px',
+          padding: '10px 14px', fontSize: '0.88rem', color: '#16A34A',
+          fontWeight: 600, zIndex: 21, textAlign: 'center',
+        }}>
+          ✅ Cambios guardados
+        </div>
+      )}
+
       {/* Barra inferior fija */}
       <div style={{
         position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
@@ -580,30 +604,30 @@ export default function Today({ role, onLogout, onBack }: Props) {
         background: 'rgba(255,255,255,0.97)', borderTop: '1px solid var(--card-border)',
         display: 'flex', gap: '10px', backdropFilter: 'blur(8px)', zIndex: 20,
       }}>
-        {alreadySaved ? (
+        {isEditing ? (
           <>
             <button
-              onClick={() => setAlreadySaved(false)}
+              onClick={handleSave}
+              disabled={saving || savedFlash}
               style={{
-                flex: 2, padding: '14px', borderRadius: '10px',
-                background: '#6C63FF', border: 'none',
-                color: '#fff', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
+                flex: 1, padding: '14px', borderRadius: '10px',
+                background: 'var(--accent-primary)', border: 'none',
+                color: '#fff', fontSize: '1rem', fontWeight: 600, cursor: 'pointer',
+                opacity: (saving || savedFlash) ? 0.7 : 1,
               }}
             >
-              ✏️ Editar lista
+              {saving ? 'Guardando…' : '💾 Guardar cambios'}
             </button>
-            {onBack && (
-              <button
-                onClick={onBack}
-                style={{
-                  flex: 1, padding: '14px', borderRadius: '10px',
-                  background: '#F0EEF8', border: '1px solid #E5E7EB',
-                  color: 'var(--text-muted)', fontSize: '0.95rem', cursor: 'pointer',
-                }}
-              >
-                ← Volver
-              </button>
-            )}
+            <div
+              onClick={() => navigate('/eligibility')}
+              style={{
+                padding: '14px 16px', borderRadius: '10px',
+                background: '#F0EEF8', border: '1px solid #E5E7EB',
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+              }}
+            >
+              <Star size={20} color="var(--text-muted)" />
+            </div>
           </>
         ) : (
           <>
