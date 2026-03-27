@@ -142,6 +142,18 @@ export class AppService {
     const start = startOfWeek(date, { weekStartsOn: 0 });
     const end = endOfWeek(date, { weekStartsOn: 0 });
 
+    // Permisos de esta semana
+    const permRecords = await this.prisma.permission.findMany({
+      where: { weekStart: start },
+      select: { memberId: true, sessionType: true },
+    });
+
+    const permMap = new Map<number, Set<string>>();
+    for (const p of permRecords) {
+      if (!permMap.has(p.memberId)) permMap.set(p.memberId, new Set());
+      permMap.get(p.memberId)!.add(p.sessionType);
+    }
+
     const members = await this.prisma.member.findMany({
       include: {
         attendances: {
@@ -173,21 +185,74 @@ export class AppService {
         if (att.session.type === 'rehearsal') rehearsalCount++;
       });
 
-      const isEligible = amCount >= 1 && pmCount >= 4 && rehearsalCount >= 2;
+      const memberPerms = permMap.get(member.id) ?? new Set<string>();
+      const hasAmPerm = memberPerms.has('am_prayer');
+      const hasPmPerm = memberPerms.has('pm_prayer');
+      const hasRehearsalPerm = memberPerms.has('rehearsal');
+
+      const isEligible =
+        (hasAmPerm || amCount >= 1) &&
+        (hasPmPerm || pmCount >= 4) &&
+        (hasRehearsalPerm || rehearsalCount >= 2);
 
       return {
         member: { id: member.id, name: member.name, voice: member.voice },
         counts: { am: amCount, pm: pmCount, rehearsal: rehearsalCount },
+        permissions: {
+          am_prayer: hasAmPerm,
+          pm_prayer: hasPmPerm,
+          rehearsal: hasRehearsalPerm,
+        },
         isEligible,
       };
     });
+  }
+
+  // Reporte semanal: conteo de sesiones guardadas + datos de elegibilidad por miembro
+  async getWeekReport(dateString: string) {
+    const date = parseISO(dateString);
+    const wStart = startOfWeek(date, { weekStartsOn: 0 });
+    const wEnd = endOfWeek(date, { weekStartsOn: 0 });
+
+    // Sesiones que fueron guardadas (lastSavedBy != null) esta semana
+    const sessions = await this.prisma.session.findMany({
+      where: {
+        date: { gte: wStart, lte: wEnd },
+        lastSavedBy: { not: null },
+      },
+      select: { type: true },
+    });
+
+    const sessionCounts: Record<string, number> = {
+      am_prayer: 0,
+      pm_prayer: 0,
+      rehearsal: 0,
+    };
+    for (const s of sessions) {
+      if (s.type in sessionCounts) sessionCounts[s.type]++;
+    }
+
+    const members = await this.getEligibility(dateString);
+
+    const fmt = (d: Date) => {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    return {
+      weekStart: fmt(wStart),
+      weekEnd: fmt(wEnd),
+      sessionCounts,
+      members,
+    };
   }
 
   // Vista del director: resumen de la semana completa
   async getDirectorWeek(dateString: string) {
     const date = parseISO(dateString);
     // Calcular domingo de la semana y normalizar a medianoche UTC explícita
-    // para evitar desfase cuando el proceso Node corre en zona distinta a UTC
     const weekStartLocal = startOfWeek(date, { weekStartsOn: 0 });
     const weekStart = new Date(Date.UTC(
       weekStartLocal.getUTCFullYear(),
@@ -211,7 +276,6 @@ export class AppService {
       include: { attendances: { where: { isPresent: true } } },
     });
 
-    // Clave usando UTC para evitar desfase por timezone del proceso
     const sessionMap = new Map<string, number>();
     for (const s of sessions) {
       const y = s.date.getUTCFullYear();
@@ -224,7 +288,6 @@ export class AppService {
     const REHEARSAL_DAYS = [1, 3, 6]; // lun, mié, sáb
 
     const days = Array.from({ length: 7 }, (_, i) => {
-      // Construir cada día con UTC explícito — getUTCDate() + i maneja overflow de mes
       const dayDate = new Date(Date.UTC(
         weekStart.getUTCFullYear(),
         weekStart.getUTCMonth(),

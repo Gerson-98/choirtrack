@@ -19,6 +19,7 @@ model Member {
   gender      String
   voice       String              @default("soprano")
   attendances AttendanceRecord[]
+  permissions Permission[]
 }
 
 model Session {
@@ -43,4 +44,17 @@ model AttendanceRecord {
   session   Session  @relation(fields: [sessionId], references: [id])
 
   @@unique([memberId, sessionId])
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  memberId    Int
+  member      Member   @relation(fields: [memberId], references: [id])
+  sessionType String   // am_prayer | pm_prayer | rehearsal
+  weekStart   DateTime // domingo de esa semana a medianoche UTC
+  reason      String?
+  grantedBy   String   // username del encargado
+  createdAt   DateTime @default(now())
+
+  @@unique([memberId, sessionType, weekStart])
 }

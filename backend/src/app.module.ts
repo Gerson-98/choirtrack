@@ -7,6 +7,8 @@ import { PrismaService } from './prisma.service';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { DirectorGuard } from './director.guard';
+import { PermissionsController } from './permissions.controller';
+import { PermissionsService } from './permissions.service';
 
 @Module({
   imports: [
@@ -20,7 +22,7 @@ import { DirectorGuard } from './director.guard';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AppController, UsersController],
-  providers: [AppService, PrismaService, UsersService, DirectorGuard],
+  controllers: [AppController, UsersController, PermissionsController],
+  providers: [AppService, PrismaService, UsersService, DirectorGuard, PermissionsService],
 })
 export class AppModule {}

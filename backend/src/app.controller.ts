@@ -35,7 +35,6 @@ export class AppController {
   }
 
   // Sesión por fecha: GET /sessions/date/2025-03-24?type=am_prayer
-  // createIfNotExists=false → no crea sesión vacía si no existe
   @UseGuards(AuthGuard)
   @Get('sessions/date/:date')
   async getSessionByDate(
@@ -55,7 +54,7 @@ export class AppController {
     return this.appService.toggleAttendance(body.memberId, body.sessionId);
   }
 
-  // Guardar asistencia completa de una sesión (nuevo — flujo de confirmación)
+  // Guardar asistencia completa de una sesión
   @UseGuards(AuthGuard)
   @Post('attendance/save')
   async saveAttendance(
@@ -84,7 +83,6 @@ export class AppController {
   @UseGuards(AuthGuard)
   @Get('director/week')
   async getDirectorWeek(@Query('date') date: string) {
-    // Fallback: fecha de hoy en Guatemala (UTC-6) para evitar desfase por zona horaria
     const dateStr = date || new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
     return this.appService.getDirectorWeek(dateStr);
   }
@@ -95,5 +93,14 @@ export class AppController {
     if (req.user.role !== 'director') throw new UnauthorizedException();
     const dateStr = date || new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
     return this.appService.getAuditLog(dateStr);
+  }
+
+  // Reporte semanal completo (solo director)
+  @UseGuards(AuthGuard)
+  @Get('report/week')
+  async getWeekReport(@Request() req: any, @Query('date') date: string) {
+    if (req.user.role !== 'director') throw new UnauthorizedException();
+    const dateStr = date || new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
+    return this.appService.getWeekReport(dateStr);
   }
 }
