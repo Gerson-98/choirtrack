@@ -13,6 +13,11 @@ interface Member {
   voice: string;
 }
 
+interface EligSummary {
+  eligible: string[];
+  atRisk: string[];
+}
+
 interface Props {
   role: string;
   onLogout: () => void;
@@ -89,13 +94,70 @@ export default function Today({ role, onLogout, onBack }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [lastSavedBy, setLastSavedBy] = useState<string | null>(null);
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<string | null>(null);
+  const [eligibilitySummary, setEligibilitySummary] = useState<EligSummary | null>(null);
   const navigate = useNavigate();
 
   const userRole = localStorage.getItem('role') ?? '';
   const isDirector = userRole === 'director';
 
+  // Fecha de hoy (local)
+  const todayDate = startOfDay(new Date());
+
   const weekDays = getWeekDays(selectedDate);
   const allowedDays = getAllowedDays(role, weekDays);
+
+  // ── Navegación de semanas ──────────────────────────────────
+  const selectedDOW = selectedDate.getDay();
+  const selectedWeekSunday = subDays(selectedDate, selectedDOW);
+  const todayDOW = todayDate.getDay();
+  const todayWeekSunday = subDays(todayDate, todayDOW);
+
+  const canGoNextWeek = selectedWeekSunday.getTime() < todayWeekSunday.getTime();
+
+  const goPrevWeek = () => {
+    const prevSunday = addDays(selectedWeekSunday, -7);
+    const prevAllowed = getAllowedDays(role, getWeekDays(addDays(prevSunday, 3)));
+    if (prevAllowed.length > 0) {
+      const sameDOW = prevAllowed.find(d => d.getDay() === selectedDOW);
+      setSelectedDate(sameDOW ?? prevAllowed[prevAllowed.length - 1]);
+    }
+  };
+
+  const goNextWeek = () => {
+    if (!canGoNextWeek) return;
+    const nextSunday = addDays(selectedWeekSunday, 7);
+    const nextAllowed = getAllowedDays(role, getWeekDays(addDays(nextSunday, 3)))
+      .filter(d => d.getTime() <= todayDate.getTime());
+    if (nextAllowed.length > 0) {
+      const sameDOW = nextAllowed.find(d => d.getDay() === selectedDOW);
+      setSelectedDate(sameDOW ?? nextAllowed[nextAllowed.length - 1]);
+    }
+  };
+
+  // Selector de fecha directo — se ajusta al día permitido más cercano
+  const handleDateInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.value) return;
+    const [y, m, d] = e.target.value.split('-').map(Number);
+    const picked = startOfDay(new Date(y, m - 1, d));
+    if (picked.getTime() > todayDate.getTime()) return;
+
+    const pickedAllowed = getAllowedDays(role, getWeekDays(picked))
+      .filter(da => da.getTime() <= todayDate.getTime());
+
+    if (pickedAllowed.length === 0) { setSelectedDate(picked); return; }
+
+    const exact = pickedAllowed.find(da => da.getTime() === picked.getTime());
+    if (exact) { setSelectedDate(exact); return; }
+
+    // Día permitido más cercano (por diferencia absoluta)
+    let closest = pickedAllowed[0];
+    let minDiff = Math.abs(closest.getTime() - picked.getTime());
+    for (const da of pickedAllowed) {
+      const diff = Math.abs(da.getTime() - picked.getTime());
+      if (diff < minDiff) { minDiff = diff; closest = da; }
+    }
+    setSelectedDate(closest);
+  };
 
   useEffect(() => {
     loadData(selectedDate);
@@ -108,6 +170,7 @@ export default function Today({ role, onLogout, onBack }: Props) {
     setSavedFlash(false);
     setLastSavedBy(null);
     setSessionUpdatedAt(null);
+    setEligibilitySummary(null);
     try {
       const dateStr = toLocalDateString(date);
       const [membersRes, sessionRes] = await Promise.all([
@@ -125,7 +188,6 @@ export default function Today({ role, onLogout, onBack }: Props) {
       );
       setSelected(presentIds);
 
-      // isEditing = sesión ya fue guardada anteriormente
       if (sessionRes.data.lastSavedBy) {
         setIsEditing(true);
         setLastSavedBy(sessionRes.data.lastSavedBy);
@@ -173,8 +235,42 @@ export default function Today({ role, onLogout, onBack }: Props) {
       setLastSavedBy(username);
       setSessionUpdatedAt(now);
       setIsEditing(true);
+
+      // Obtener resumen de elegibilidad después de guardar
+      try {
+        const dateStr = toLocalDateString(selectedDate);
+        const eligRes = await api.get(`/eligibility/${dateStr}`);
+        const eligData = eligRes.data as Array<{
+          member: { name: string };
+          counts: { am: number; pm: number; rehearsal: number };
+          permissions?: { am_prayer: boolean; pm_prayer: boolean; rehearsal: boolean };
+          isEligible: boolean;
+        }>;
+
+        const eligible = eligData.filter(d => d.isEligible).map(d => d.member.name);
+
+        const atRisk = eligData.filter(d => {
+          if (d.isEligible) return false;
+          const { am, pm, rehearsal } = d.counts;
+          const perms = d.permissions ?? { am_prayer: false, pm_prayer: false, rehearsal: false };
+          const amMet = perms.am_prayer || am >= 1;
+          const pmMet = perms.pm_prayer || pm >= 4;
+          const rehearsalMet = perms.rehearsal || rehearsal >= 2;
+          const notMet = [amMet, pmMet, rehearsalMet].filter(m => !m).length;
+          if (notMet !== 1) return false;
+          if (!amMet) return true;           // am + 1 >= 1 siempre
+          if (!pmMet) return pm >= 3;        // necesita 1 más (pm=3 → 4)
+          return rehearsal >= 1;             // necesita 1 más (rehearsal=1 → 2)
+        }).map(d => d.member.name);
+
+        if (eligible.length > 0 || atRisk.length > 0) {
+          setEligibilitySummary({ eligible, atRisk });
+        }
+      } catch {
+        // No fallar el guardado si falla la elegibilidad
+      }
+
       if (isEditing) {
-        // Modo edición: flash breve, luego pantalla de éxito
         setSavedFlash(true);
         setTimeout(() => {
           setSavedFlash(false);
@@ -202,19 +298,6 @@ export default function Today({ role, onLogout, onBack }: Props) {
   const roleEmoji = ROLE_EMOJI[role] ?? '📋';
   const fechaDisplay = format(selectedDate, "EEEE d 'de' MMMM", { locale: es });
   const presentCount = selected.size;
-
-  const canGoPrev = allowedDays.length > 0 && selectedDate > allowedDays[0];
-  const canGoNext = allowedDays.length > 0 && selectedDate < allowedDays[allowedDays.length - 1];
-
-  const goPrevDay = () => {
-    const idx = allowedDays.findIndex(d => d.getTime() === selectedDate.getTime());
-    if (idx > 0) setSelectedDate(allowedDays[idx - 1]);
-  };
-
-  const goNextDay = () => {
-    const idx = allowedDays.findIndex(d => d.getTime() === selectedDate.getTime());
-    if (idx < allowedDays.length - 1) setSelectedDate(allowedDays[idx + 1]);
-  };
 
   // Botón ← reutilizable en todos los headers
   const BackButton = () => onBack ? (
@@ -369,7 +452,7 @@ export default function Today({ role, onLogout, onBack }: Props) {
 
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', height: '70vh', gap: '16px', padding: '0 32px',
+          justifyContent: 'center', minHeight: '70vh', gap: '14px', padding: '32px 24px',
           textAlign: 'center',
         }}>
           <div style={{ fontSize: '3rem' }}>✅</div>
@@ -377,12 +460,44 @@ export default function Today({ role, onLogout, onBack }: Props) {
           <p style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>
             {presentCount} presente{presentCount !== 1 ? 's' : ''} registrado{presentCount !== 1 ? 's' : ''}
           </p>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Puedes volver a este día para corregir
           </p>
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px', width: '100%', maxWidth: '300px' }}>
+
+          {/* Resumen de elegibilidad */}
+          {eligibilitySummary && (eligibilitySummary.eligible.length > 0 || eligibilitySummary.atRisk.length > 0) && (
+            <div style={{
+              background: '#F9FAFB', border: '1px solid #E5E7EB',
+              borderRadius: '12px', padding: '14px 16px',
+              width: '100%', maxWidth: '320px', textAlign: 'left',
+              fontSize: '0.82rem', lineHeight: 1.5,
+            }}>
+              {eligibilitySummary.eligible.length > 0 && (
+                <p style={{ marginBottom: eligibilitySummary.atRisk.length > 0 ? '8px' : 0 }}>
+                  <span style={{ color: '#10B981', fontWeight: 700 }}>
+                    ✅ Recién elegibles ({eligibilitySummary.eligible.length}):
+                  </span>{' '}
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {eligibilitySummary.eligible.join(', ')}
+                  </span>
+                </p>
+              )}
+              {eligibilitySummary.atRisk.length > 0 && (
+                <p>
+                  <span style={{ color: '#F59E0B', fontWeight: 700 }}>
+                    ⚠️ En riesgo ({eligibilitySummary.atRisk.length}):
+                  </span>{' '}
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {eligibilitySummary.atRisk.join(', ')}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '8px', width: '100%', maxWidth: '320px' }}>
             <button
-              onClick={() => setScreen('list')}
+              onClick={() => { setScreen('list'); setEligibilitySummary(null); }}
               style={{
                 flex: 2, padding: '12px 0', borderRadius: '10px',
                 background: '#6C63FF', border: 'none',
@@ -392,7 +507,7 @@ export default function Today({ role, onLogout, onBack }: Props) {
               ✏️ Editar lista
             </button>
             <button
-              onClick={() => navigate('/')}
+              onClick={() => { setEligibilitySummary(null); navigate('/'); }}
               style={{
                 flex: 1, padding: '12px 0', borderRadius: '10px',
                 background: '#F0EEF8', border: '1px solid #E5E7EB',
@@ -437,44 +552,95 @@ export default function Today({ role, onLogout, onBack }: Props) {
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
           <div className="count-badge">{presentCount} / {members.length}</div>
+          <span
+            title="Permisos de ausencia"
+            onClick={() => navigate('/permissions')}
+            style={{ cursor: 'pointer', fontSize: '1.15rem', lineHeight: 1 }}
+          >
+            ✋
+          </span>
           <LogOut size={20} style={{ cursor: 'pointer', color: 'var(--text-muted)' }} onClick={onLogout} />
         </div>
       </div>
 
-      {/* Navegación de días */}
+      {/* Navegación: selector de semana + fecha */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 16px',
-        borderBottom: '1px solid var(--card-border)',
         background: 'var(--bg-base)',
+        borderBottom: '1px solid var(--card-border)',
       }}>
-        <button
-          onClick={goPrevDay}
-          disabled={!canGoPrev}
-          style={{
-            background: 'none', border: 'none', cursor: canGoPrev ? 'pointer' : 'default',
-            color: canGoPrev ? 'var(--text-muted)' : '#D1D5DB', padding: '4px',
-          }}
-        >
-          <ChevronLeft size={22} />
-        </button>
+        {/* Fila 1: semanas + date input */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '6px 12px 4px',
+        }}>
+          <button
+            onClick={goPrevWeek}
+            title="Semana anterior"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', padding: '4px',
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            <ChevronLeft size={20} />
+          </button>
 
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <input
+            type="date"
+            value={toLocalDateString(selectedDate)}
+            max={toLocalDateString(todayDate)}
+            onChange={handleDateInput}
+            style={{
+              border: '1px solid var(--card-border)',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              fontSize: '0.8rem',
+              background: '#FAFAFA',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          />
+
+          <button
+            onClick={goNextWeek}
+            disabled={!canGoNextWeek}
+            title="Semana siguiente"
+            style={{
+              background: 'none', border: 'none',
+              cursor: canGoNextWeek ? 'pointer' : 'default',
+              color: canGoNextWeek ? 'var(--text-muted)' : '#D1D5DB',
+              padding: '4px', display: 'flex', alignItems: 'center',
+            }}
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+
+        {/* Fila 2: píldoras de días */}
+        <div style={{
+          display: 'flex', gap: '4px', flexWrap: 'wrap',
+          justifyContent: 'center', padding: '0 12px 8px',
+        }}>
           {allowedDays.map(d => {
             const isSelected = d.getTime() === selectedDate.getTime();
-            const isToday = d.getTime() === startOfDay(new Date()).getTime();
+            const isToday = d.getTime() === todayDate.getTime();
+            const isFuture = d.getTime() > todayDate.getTime();
             return (
               <button
                 key={d.toISOString()}
-                onClick={() => setSelectedDate(d)}
+                onClick={() => !isFuture && setSelectedDate(d)}
+                disabled={isFuture}
                 style={{
-                  padding: '4px 10px', borderRadius: '20px', cursor: 'pointer',
+                  padding: '4px 10px', borderRadius: '20px',
+                  cursor: isFuture ? 'not-allowed' : 'pointer',
                   fontSize: '0.78rem', fontWeight: isSelected ? 600 : 400,
-                  background: isSelected ? 'var(--accent-primary)' : '#EEEDF6',
+                  background: isSelected ? 'var(--accent-primary)' : isFuture ? '#F3F4F6' : '#EEEDF6',
                   border: isToday && !isSelected ? '1px solid var(--accent-primary)' : '1px solid transparent',
-                  color: isSelected ? '#fff' : 'var(--text-muted)',
+                  color: isSelected ? '#fff' : isFuture ? '#D1D5DB' : 'var(--text-muted)',
+                  opacity: isFuture ? 0.45 : 1,
                   transition: 'all 0.15s',
                 }}
               >
@@ -483,17 +649,6 @@ export default function Today({ role, onLogout, onBack }: Props) {
             );
           })}
         </div>
-
-        <button
-          onClick={goNextDay}
-          disabled={!canGoNext}
-          style={{
-            background: 'none', border: 'none', cursor: canGoNext ? 'pointer' : 'default',
-            color: canGoNext ? 'var(--text-muted)' : '#D1D5DB', padding: '4px',
-          }}
-        >
-          <ChevronRight size={22} />
-        </button>
       </div>
 
       {/* Lista de miembros por voz */}
@@ -654,6 +809,17 @@ export default function Today({ role, onLogout, onBack }: Props) {
           </>
         )}
       </div>
+
+      {saveError && (
+        <div style={{
+          position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)', maxWidth: '398px',
+          background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px',
+          padding: '10px 14px', fontSize: '0.85rem', color: '#DC2626', zIndex: 21,
+        }}>
+          {saveError}
+        </div>
+      )}
     </>
   );
 }

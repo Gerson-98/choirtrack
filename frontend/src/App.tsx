@@ -7,6 +7,8 @@ import Eligibility from './Eligibility';
 import Dashboard from './Dashboard';
 import Presentacion from './Presentacion';
 import Users from './Users';
+import Permissions from './Permissions';
+import Report from './Report';
 
 const VALID_ROLES = ['director', 'oraciones', 'repasos'];
 
@@ -88,6 +90,24 @@ function App() {
           element={
             isAuthenticated && role === 'director'
               ? <Users onLogout={handleLogout} />
+              : <Navigate to="/" />
+          }
+        />
+        {/* TAREA 2: Permisos — accesible a todos los roles autenticados */}
+        <Route
+          path="/permissions"
+          element={
+            isAuthenticated
+              ? <Permissions onLogout={handleLogout} />
+              : <Navigate to="/login" />
+          }
+        />
+        {/* TAREA 3: Reporte — solo director */}
+        <Route
+          path="/report"
+          element={
+            isAuthenticated && role === 'director'
+              ? <Report onLogout={handleLogout} />
               : <Navigate to="/" />
           }
         />

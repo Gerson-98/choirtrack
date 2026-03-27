@@ -16,6 +16,7 @@ interface SessionSummary {
 interface EligibilityData {
     member: { id: number; name: string; voice: string };
     counts: { am: number; pm: number; rehearsal: number };
+    permissions?: { am_prayer: boolean; pm_prayer: boolean; rehearsal: boolean };
     isEligible: boolean;
 }
 
@@ -257,8 +258,12 @@ export default function Dashboard({ onLogout }: Props) {
 
     // ── Subcomponente fila de miembro ─────────────────────────
     const MemberRow = ({ item, isEligible }: { item: EligibilityData; isEligible: boolean }) => {
-        const { member, counts } = item;
+        const { member, counts, permissions: perms } = item;
         const initials = member.name.split(' ').slice(0, 2).map(n => n[0]).join('');
+        const amPerm = perms?.am_prayer ?? false;
+        const pmPerm = perms?.pm_prayer ?? false;
+        const rPerm = perms?.rehearsal ?? false;
+        const hasAnyPerm = amPerm || pmPerm || rPerm;
         return (
             <div style={{
                 padding: '10px 14px',
@@ -278,13 +283,14 @@ export default function Dashboard({ onLogout }: Props) {
                         {initials}
                     </div>
                     <div>
-                        <div style={{ fontWeight: 500, fontSize: '0.9rem', marginBottom: '4px', color: 'var(--text-main)' }}>
+                        <div style={{ fontWeight: 500, fontSize: '0.9rem', marginBottom: '4px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             {member.name}
+                            {hasAnyPerm && <span title="Tiene permiso de ausencia" style={{ fontSize: '0.82rem' }}>✋</span>}
                         </div>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <Pill met={counts.am >= 1} label={`🌅 ${counts.am}/1`} />
-                            <Pill met={counts.pm >= 4} label={`🌙 ${counts.pm}/4`} />
-                            <Pill met={counts.rehearsal >= 2} label={`🎵 ${counts.rehearsal}/2`} />
+                            <Pill met={counts.am >= 1 || amPerm} label={`🌅 ${counts.am}/1${amPerm ? ' ✋' : ''}`} />
+                            <Pill met={counts.pm >= 4 || pmPerm} label={`🌙 ${counts.pm}/4${pmPerm ? ' ✋' : ''}`} />
+                            <Pill met={counts.rehearsal >= 2 || rPerm} label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`} />
                         </div>
                     </div>
                 </div>
@@ -767,6 +773,19 @@ export default function Dashboard({ onLogout }: Props) {
                         </span>
                     </div>
                 ))}
+                <div
+                    onClick={() => navigate('/report')}
+                    style={{
+                        flex: 1, padding: '12px 8px', display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: '4px', cursor: 'pointer',
+                        borderBottom: '2px solid transparent',
+                    }}
+                >
+                    <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>📊</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                        Reporte
+                    </span>
+                </div>
                 <div
                     onClick={() => navigate('/users')}
                     style={{

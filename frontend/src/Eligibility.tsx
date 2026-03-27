@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 interface EligibilityItem {
   member: { id: number; name: string; voice: string };
   counts: { am: number; pm: number; rehearsal: number };
+  permissions?: { am_prayer: boolean; pm_prayer: boolean; rehearsal: boolean };
   isEligible: boolean;
 }
 
@@ -88,18 +89,21 @@ export default function Eligibility({ onLogout }: Props) {
   const byVoiceNoEligible = groupByVoice(noEligibleItems);
 
   const MemberCard = ({ item }: { item: EligibilityItem }) => {
-    const { member, counts, isEligible } = item;
+    const { member, counts, permissions: perms, isEligible } = item;
     const initials = member.name.split(' ').slice(0, 2).map(n => n[0]).join('');
+    const amPerm = perms?.am_prayer ?? false;
+    const pmPerm = perms?.pm_prayer ?? false;
+    const rPerm = perms?.rehearsal ?? false;
+    const hasAnyPerm = amPerm || pmPerm || rPerm;
+
     return (
-      <div
-        style={{
-          padding: '10px 14px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          borderLeft: `3px solid ${isEligible ? '#10B981' : '#EF4444'}`,
-          borderTop: '1px solid #F0F0F0',
-          background: isEligible ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.04)',
-        }}
-      >
+      <div style={{
+        padding: '10px 14px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderLeft: `3px solid ${isEligible ? '#10B981' : '#EF4444'}`,
+        borderTop: '1px solid #F0F0F0',
+        background: isEligible ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.04)',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
             width: '34px', height: '34px', borderRadius: '50%',
@@ -111,11 +115,25 @@ export default function Eligibility({ onLogout }: Props) {
             {initials}
           </div>
           <div>
-            <div style={{ fontWeight: 500, fontSize: '0.92rem', marginBottom: '4px' }}>{member.name}</div>
+            <div style={{ fontWeight: 500, fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              {member.name}
+              {hasAnyPerm && (
+                <span title="Tiene permiso de ausencia esta semana" style={{ fontSize: '0.85rem' }}>✋</span>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-              <Pill met={counts.am >= 1} label={`🌅 ${counts.am}/1`} />
-              <Pill met={counts.pm >= 4} label={`🌙 ${counts.pm}/4`} />
-              <Pill met={counts.rehearsal >= 2} label={`🎵 ${counts.rehearsal}/2`} />
+              <Pill
+                met={counts.am >= 1 || amPerm}
+                label={`🌅 ${counts.am}/1${amPerm ? ' ✋' : ''}`}
+              />
+              <Pill
+                met={counts.pm >= 4 || pmPerm}
+                label={`🌙 ${counts.pm}/4${pmPerm ? ' ✋' : ''}`}
+              />
+              <Pill
+                met={counts.rehearsal >= 2 || rPerm}
+                label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`}
+              />
             </div>
           </div>
         </div>
@@ -171,6 +189,9 @@ export default function Eligibility({ onLogout }: Props) {
             <Pill met={true} label="🌙 Oración 6pm ≥ 4" />
             <Pill met={true} label="🎵 Ensayo ≥ 2" />
           </div>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+            ✋ = Permiso de ausencia (requisito automáticamente cumplido)
+          </p>
         </div>
 
         {/* ── SECCIÓN ELEGIBLES (abierta por defecto) ── */}
@@ -196,24 +217,14 @@ export default function Eligibility({ onLogout }: Props) {
           </div>
 
           {eligibleOpen && (
-            <div style={{
-              border: '1px solid rgba(16,185,129,0.25)',
-              borderTop: 'none',
-              borderRadius: '0 0 10px 10px',
-              overflow: 'hidden',
-            }}>
+            <div style={{ border: '1px solid rgba(16,185,129,0.25)', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
               {VOICE_ORDER.map(voice => {
                 const list = byVoiceEligible[voice];
                 if (!list.length) return null;
                 const color = VOICE_COLORS[voice];
                 return (
                   <div key={voice}>
-                    <div style={{
-                      padding: '6px 14px', background: '#F9F9FB',
-                      fontSize: '0.72rem', fontWeight: 700,
-                      color, textTransform: 'uppercase', letterSpacing: '0.05em',
-                      borderTop: '1px solid #F0F0F0',
-                    }}>
+                    <div style={{ padding: '6px 14px', background: '#F9F9FB', fontSize: '0.72rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', borderTop: '1px solid #F0F0F0' }}>
                       {VOICE_LABELS[voice]} ({list.length})
                     </div>
                     {list.map(item => <MemberCard key={item.member.id} item={item} />)}
@@ -252,24 +263,14 @@ export default function Eligibility({ onLogout }: Props) {
           </div>
 
           {noEligibleOpen && (
-            <div style={{
-              border: '1px solid rgba(239,68,68,0.2)',
-              borderTop: 'none',
-              borderRadius: '0 0 10px 10px',
-              overflow: 'hidden',
-            }}>
+            <div style={{ border: '1px solid rgba(239,68,68,0.2)', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
               {VOICE_ORDER.map(voice => {
                 const list = byVoiceNoEligible[voice];
                 if (!list.length) return null;
                 const color = VOICE_COLORS[voice];
                 return (
                   <div key={voice}>
-                    <div style={{
-                      padding: '6px 14px', background: '#F9F9FB',
-                      fontSize: '0.72rem', fontWeight: 700,
-                      color, textTransform: 'uppercase', letterSpacing: '0.05em',
-                      borderTop: '1px solid #F0F0F0',
-                    }}>
+                    <div style={{ padding: '6px 14px', background: '#F9F9FB', fontSize: '0.72rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', borderTop: '1px solid #F0F0F0' }}>
                       {VOICE_LABELS[voice]} ({list.length})
                     </div>
                     {list.map(item => <MemberCard key={item.member.id} item={item} />)}
