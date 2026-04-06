@@ -31,16 +31,34 @@ const VOICE_COLORS: Record<string, string> = {
   bajo: '#f0b450',
 };
 
-function Pill({ met, label }: { met: boolean; label: string }) {
+// Celda de stat individual dentro del grid de 3 columnas
+function StatCell({
+  icon, label, value, met, hasPerm,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  met: boolean;
+  hasPerm: boolean;
+}) {
+  const color = hasPerm ? '#6C63FF' : met ? '#10B981' : '#EF4444';
+  const bg = hasPerm ? 'rgba(108,99,255,0.07)' : met ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.06)';
+  const border = hasPerm ? 'rgba(108,99,255,0.2)' : met ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.18)';
   return (
-    <span style={{
-      fontSize: '0.7rem', fontWeight: 600, padding: '3px 8px', borderRadius: '20px',
-      background: met ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)',
-      color: met ? '#10B981' : '#EF4444',
-      border: `1px solid ${met ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.25)'}`,
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '5px 3px', borderRadius: '8px', gap: '2px',
+      background: bg, border: `1px solid ${border}`,
+      minWidth: 0, overflow: 'hidden',
     }}>
-      {label}
-    </span>
+      <span style={{ fontSize: '0.85rem', lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: '0.82rem', fontWeight: 700, color, lineHeight: 1 }}>
+        {hasPerm ? '✋' : value}
+      </span>
+      <span style={{ fontSize: '0.6rem', color: color, opacity: 0.75, lineHeight: 1, whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -88,6 +106,7 @@ export default function Eligibility({ onLogout }: Props) {
   const byVoiceEligible = groupByVoice(eligibleItems);
   const byVoiceNoEligible = groupByVoice(noEligibleItems);
 
+  // ── Card de miembro con layout de 2 filas ─────────────────
   const MemberCard = ({ item }: { item: EligibilityItem }) => {
     const { member, counts, permissions: perms, isEligible } = item;
     const initials = member.name.split(' ').slice(0, 2).map(n => n[0]).join('');
@@ -104,43 +123,73 @@ export default function Eligibility({ onLogout }: Props) {
     const combinedMet = combinedPerm || combinedCount >= 4;
     const rehearsalMet = rPerm || counts.rehearsal >= 2;
 
-    const combinedLabel = isFemale
-      ? `🌙☀️ ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`
-      : `🌅🌙 ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`;
-
     return (
       <div style={{
-        padding: '10px 14px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '9px 12px 10px',
         borderLeft: `3px solid ${isEligible ? '#10B981' : '#EF4444'}`,
         borderTop: '1px solid #F0F0F0',
-        background: isEligible ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.04)',
+        background: isEligible ? 'rgba(16,185,129,0.04)' : 'rgba(239,68,68,0.03)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Fila 1: avatar · nombre · ✅/❌ */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
           <div style={{
-            width: '34px', height: '34px', borderRadius: '50%',
+            width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
             background: isEligible ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)',
             color: isEligible ? '#10B981' : '#EF4444',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '0.75rem', fontWeight: 600,
+            fontSize: '0.7rem', fontWeight: 700,
           }}>
             {initials}
           </div>
-          <div>
-            <div style={{ fontWeight: 500, fontSize: '0.92rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              {member.name}
-              {hasAnyPerm && (
-                <span title="Tiene permiso de ausencia esta semana" style={{ fontSize: '0.85rem' }}>✋</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-              <Pill met={amMet} label={`🌅 ${counts.am}/2${amPerm ? ' ✋' : ''}`} />
-              <Pill met={combinedMet} label={combinedLabel} />
-              <Pill met={rehearsalMet} label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`} />
-            </div>
-          </div>
+          {/* nombre con min-width:0 para que el truncado funcione */}
+          <span style={{
+            flex: 1, minWidth: 0,
+            fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {member.name}
+            {hasAnyPerm && (
+              <span
+                title="Tiene permiso de ausencia esta semana"
+                style={{ marginLeft: '5px', fontSize: '0.78rem' }}
+              >✋</span>
+            )}
+          </span>
+          <span style={{ fontSize: '1.05rem', flexShrink: 0 }}>
+            {isEligible ? '✅' : '❌'}
+          </span>
         </div>
-        <span style={{ fontSize: '1.2rem' }}>{isEligible ? '✅' : '❌'}</span>
+
+        {/* Fila 2: grid 3 columnas iguales — siempre caben en cualquier pantalla */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr',
+          gap: '5px',
+          // sangría alineada con el nombre (avatar 30px + gap 8px)
+          paddingLeft: '38px',
+        }}>
+          <StatCell
+            icon="🌅"
+            label="5am min."
+            value={`${counts.am}/2`}
+            met={amMet}
+            hasPerm={amPerm}
+          />
+          <StatCell
+            icon={isFemale ? '🌙☀️' : '🌅🌙'}
+            label="comb. ≥4"
+            value={`${combinedCount}/4`}
+            met={combinedMet}
+            hasPerm={combinedPerm}
+          />
+          <StatCell
+            icon="🎵"
+            label="ensayo"
+            value={`${counts.rehearsal}/2`}
+            met={rehearsalMet}
+            hasPerm={rPerm}
+          />
+        </div>
       </div>
     );
   };
@@ -152,6 +201,84 @@ export default function Eligibility({ onLogout }: Props) {
       </div>
     );
   }
+
+  // Helper para renderizar una sección (elegibles / no elegibles)
+  const Section = ({
+    isElig,
+    open,
+    setOpen,
+    byVoice,
+    count,
+    emptyMsg,
+  }: {
+    isElig: boolean;
+    open: boolean;
+    setOpen: (v: boolean) => void;
+    byVoice: Record<string, EligibilityItem[]>;
+    count: number;
+    emptyMsg: string;
+  }) => {
+    const color = isElig ? '#10B981' : '#EF4444';
+    const borderColor = isElig ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.2)';
+    const bgColor = isElig ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.05)';
+    const label = isElig ? `✅ Pueden subir (${count})` : `❌ Faltan requisitos (${count})`;
+
+    return (
+      <div style={{ marginBottom: '8px' }}>
+        {/* Header del acordeón */}
+        <div
+          onClick={() => setOpen(!open)}
+          style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '12px 16px',
+            background: bgColor,
+            borderRadius: open ? '10px 10px 0 0' : '10px',
+            border: `1px solid ${borderColor}`,
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+        >
+          <span style={{ fontWeight: 700, color, fontSize: '0.95rem' }}>{label}</span>
+          {open
+            ? <ChevronDown size={16} color={color} />
+            : <ChevronRight size={16} color={color} />
+          }
+        </div>
+
+        {/* Cuerpo */}
+        {open && (
+          <div style={{
+            border: `1px solid ${borderColor}`, borderTop: 'none',
+            borderRadius: '0 0 10px 10px', overflow: 'hidden',
+          }}>
+            {VOICE_ORDER.map(voice => {
+              const list = byVoice[voice];
+              if (!list.length) return null;
+              const vc = VOICE_COLORS[voice];
+              return (
+                <div key={voice}>
+                  <div style={{
+                    padding: '5px 12px', background: '#F9F9FB',
+                    fontSize: '0.7rem', fontWeight: 700, color: vc,
+                    textTransform: 'uppercase', letterSpacing: '0.05em',
+                    borderTop: '1px solid #F0F0F0',
+                  }}>
+                    {VOICE_LABELS[voice]} ({list.length})
+                  </div>
+                  {list.map(item => <MemberCard key={item.member.id} item={item} />)}
+                </div>
+              );
+            })}
+            {count === 0 && (
+              <p style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                {emptyMsg}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -170,7 +297,8 @@ export default function Eligibility({ onLogout }: Props) {
       </div>
 
       <div className="container" style={{ paddingBottom: '32px' }}>
-        {/* Resumen */}
+
+        {/* Resumen numérico */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <div className="glass-panel" style={{ padding: '14px', textAlign: 'center', borderLeft: '3px solid #10B981' }}>
             <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#10B981' }}>{elegibles}</div>
@@ -182,115 +310,51 @@ export default function Eligibility({ onLogout }: Props) {
           </div>
         </div>
 
-        {/* Requisitos */}
+        {/* Leyenda de requisitos */}
         <div className="glass-panel" style={{ padding: '10px 14px' }}>
-          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '7px', fontWeight: 600, textTransform: 'uppercase' }}>
-            Requisitos semana actual
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Requisitos esta semana
           </p>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <Pill met={true} label="🌅 5am ≥ 2" />
-            <Pill met={true} label="Combinadas ≥ 4" />
-            <Pill met={true} label="🎵 Ensayo ≥ 2" />
-          </div>
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-            ♀ Combinadas = 🌙6pm + ☀️9am · ♂ Combinadas = 🌅5am + 🌙6pm
-          </p>
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            ✋ = Permiso de ausencia (requisito automáticamente cumplido)
-          </p>
-        </div>
-
-        {/* ── SECCIÓN ELEGIBLES (abierta por defecto) ── */}
-        <div style={{ marginBottom: '8px' }}>
-          <div
-            onClick={() => setEligibleOpen(p => !p)}
-            style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 16px',
-              background: 'rgba(16,185,129,0.08)',
-              borderRadius: eligibleOpen ? '10px 10px 0 0' : '10px',
-              border: '1px solid rgba(16,185,129,0.25)',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontWeight: 700, color: '#10B981', fontSize: '0.95rem' }}>
-              ✅ Pueden subir ({elegibles})
-            </span>
-            {eligibleOpen
-              ? <ChevronDown size={16} color="#10B981" />
-              : <ChevronRight size={16} color="#10B981" />
-            }
-          </div>
-
-          {eligibleOpen && (
-            <div style={{ border: '1px solid rgba(16,185,129,0.25)', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
-              {VOICE_ORDER.map(voice => {
-                const list = byVoiceEligible[voice];
-                if (!list.length) return null;
-                const color = VOICE_COLORS[voice];
-                return (
-                  <div key={voice}>
-                    <div style={{ padding: '6px 14px', background: '#F9F9FB', fontSize: '0.72rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', borderTop: '1px solid #F0F0F0' }}>
-                      {VOICE_LABELS[voice]} ({list.length})
-                    </div>
-                    {list.map(item => <MemberCard key={item.member.id} item={item} />)}
-                  </div>
-                );
-              })}
-              {elegibles === 0 && (
-                <p style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                  Ningún miembro cumple todos los requisitos aún.
-                </p>
-              )}
+          {/* Dos columnas para que no se amontone */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              <span style={{ fontWeight: 600 }}>♀ Mujeres</span><br />
+              🌅 5am: ≥ 2<br />
+              🌙☀️ comb.: ≥ 4 (6pm + 9am)<br />
+              🎵 Ensayo: ≥ 2
             </div>
-          )}
-        </div>
-
-        {/* ── SECCIÓN NO ELEGIBLES (cerrada por defecto) ── */}
-        <div style={{ marginBottom: '8px' }}>
-          <div
-            onClick={() => setNoEligibleOpen(p => !p)}
-            style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 16px',
-              background: 'rgba(239,68,68,0.05)',
-              borderRadius: noEligibleOpen ? '10px 10px 0 0' : '10px',
-              border: '1px solid rgba(239,68,68,0.2)',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontWeight: 700, color: '#EF4444', fontSize: '0.95rem' }}>
-              ❌ Faltan requisitos ({total - elegibles})
-            </span>
-            {noEligibleOpen
-              ? <ChevronDown size={16} color="#EF4444" />
-              : <ChevronRight size={16} color="#EF4444" />
-            }
-          </div>
-
-          {noEligibleOpen && (
-            <div style={{ border: '1px solid rgba(239,68,68,0.2)', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
-              {VOICE_ORDER.map(voice => {
-                const list = byVoiceNoEligible[voice];
-                if (!list.length) return null;
-                const color = VOICE_COLORS[voice];
-                return (
-                  <div key={voice}>
-                    <div style={{ padding: '6px 14px', background: '#F9F9FB', fontSize: '0.72rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', borderTop: '1px solid #F0F0F0' }}>
-                      {VOICE_LABELS[voice]} ({list.length})
-                    </div>
-                    {list.map(item => <MemberCard key={item.member.id} item={item} />)}
-                  </div>
-                );
-              })}
-              {total - elegibles === 0 && (
-                <p style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                  ¡Todos cumplen los requisitos!
-                </p>
-              )}
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              <span style={{ fontWeight: 600 }}>♂ Hombres</span><br />
+              🌅 5am: ≥ 2<br />
+              🌅🌙 comb.: ≥ 4 (5am + 6pm)<br />
+              🎵 Ensayo: ≥ 2
             </div>
-          )}
+          </div>
+          <p style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: '6px' }}>
+            ✋ = Permiso de ausencia · celdas con borde <span style={{ color: '#6C63FF' }}>morado</span> = permiso activo
+          </p>
         </div>
+
+        {/* Acordeón ELEGIBLES */}
+        <Section
+          isElig={true}
+          open={eligibleOpen}
+          setOpen={setEligibleOpen}
+          byVoice={byVoiceEligible}
+          count={elegibles}
+          emptyMsg="Ningún miembro cumple todos los requisitos aún."
+        />
+
+        {/* Acordeón NO ELEGIBLES */}
+        <Section
+          isElig={false}
+          open={noEligibleOpen}
+          setOpen={setNoEligibleOpen}
+          byVoice={byVoiceNoEligible}
+          count={total - elegibles}
+          emptyMsg="¡Todos cumplen los requisitos!"
+        />
+
       </div>
     </>
   );
