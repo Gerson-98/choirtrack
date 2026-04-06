@@ -14,9 +14,9 @@ interface SessionSummary {
 }
 
 interface EligibilityData {
-    member: { id: number; name: string; voice: string };
-    counts: { am: number; pm: number; rehearsal: number };
-    permissions?: { am_prayer: boolean; pm_prayer: boolean; rehearsal: boolean };
+    member: { id: number; name: string; voice: string; gender: string };
+    counts: { am: number; pm: number; morning: number; rehearsal: number };
+    permissions?: { am_prayer: boolean; pm_prayer: boolean; morning_prayer: boolean; rehearsal: boolean };
     isEligible: boolean;
 }
 
@@ -25,6 +25,7 @@ interface WeekDay {
     dayOfWeek: number;
     am_prayer: number | null;
     pm_prayer: number | null;
+    morning_prayer: number | null;
     rehearsal: number | null | 'N/A';
 }
 
@@ -48,6 +49,7 @@ interface Props {
 const SESSION_META: Record<string, { label: string; emoji: string; route: string; borderColor: string }> = {
     am_prayer: { label: 'Oración 5am', emoji: '🌅', route: '/session/am_prayer', borderColor: 'rgba(212,112,176,0.5)' },
     pm_prayer: { label: 'Oración 6pm', emoji: '🌙', route: '/session/pm_prayer', borderColor: 'rgba(74,158,245,0.5)' },
+    morning_prayer: { label: 'Oración 9am', emoji: '☀️', route: '/session/morning_prayer', borderColor: 'rgba(240,180,50,0.5)' },
     rehearsal: { label: 'Ensayo', emoji: '🎵', route: '/session/rehearsal', borderColor: 'rgba(50,200,140,0.5)' },
 };
 
@@ -157,12 +159,16 @@ export default function Dashboard({ onLogout }: Props) {
 
     const amSession = sessions.find(s => s.type === 'am_prayer');
     const pmSession = sessions.find(s => s.type === 'pm_prayer');
+    const morningSession = sessions.find(s => s.type === 'morning_prayer');
     const rehearsalSession = sessions.find(s => s.type === 'rehearsal');
 
     const unregisteredAlerts: string[] = [];
     if (!loading) {
         if (amSession && amSession.count === 0 && currentHour >= 6) {
             unregisteredAlerts.push('⚠️ Oración 5am de hoy sin registrar');
+        }
+        if (morningSession && morningSession.count === 0 && currentHour >= 10) {
+            unregisteredAlerts.push('⚠️ Oración 9am de hoy sin registrar');
         }
         if (pmSession && pmSession.count === 0 && currentHour >= 19) {
             unregisteredAlerts.push('⚠️ Oración 6pm de hoy sin registrar');
@@ -220,9 +226,11 @@ export default function Dashboard({ onLogout }: Props) {
                     ctx.fillRect(20, y + 2, 3, rowH - 4);
                     ctx.fillStyle = '#ffffff'; ctx.font = '14px system-ui';
                     ctx.fillText(member.name, 36, y + rowH / 2 + 5);
+                    const isFem = member.gender === 'F';
+                    const combinedCt = isFem ? counts.pm + counts.morning : counts.am + counts.pm;
                     const pillData = [
-                        { label: `🌅 ${counts.am}/1`, met: counts.am >= 1 },
-                        { label: `🌙 ${counts.pm}/4`, met: counts.pm >= 4 },
+                        { label: `🌅 ${counts.am}/2`, met: counts.am >= 2 },
+                        { label: `${isFem ? '🌙☀️' : '🌅🌙'} ${combinedCt}/4`, met: combinedCt >= 4 },
                         { label: `🎵 ${counts.rehearsal}/2`, met: counts.rehearsal >= 2 },
                     ];
                     let px = 340;
@@ -262,8 +270,22 @@ export default function Dashboard({ onLogout }: Props) {
         const initials = member.name.split(' ').slice(0, 2).map(n => n[0]).join('');
         const amPerm = perms?.am_prayer ?? false;
         const pmPerm = perms?.pm_prayer ?? false;
+        const mornPerm = perms?.morning_prayer ?? false;
         const rPerm = perms?.rehearsal ?? false;
-        const hasAnyPerm = amPerm || pmPerm || rPerm;
+        const hasAnyPerm = amPerm || pmPerm || mornPerm || rPerm;
+        const isFemale = member.gender === 'F';
+
+        // Nueva lógica de pills según género
+        const amMet = amPerm || counts.am >= 2;
+        const combinedCount = isFemale ? counts.pm + counts.morning : counts.am + counts.pm;
+        const combinedPerm = isFemale ? (pmPerm || mornPerm) : (amPerm || pmPerm);
+        const combinedMet = combinedPerm || combinedCount >= 4;
+        const rehearsalMet = rPerm || counts.rehearsal >= 2;
+
+        const combinedLabel = isFemale
+            ? `🌙☀️ ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`
+            : `🌅🌙 ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`;
+
         return (
             <div style={{
                 padding: '10px 14px',
@@ -288,9 +310,9 @@ export default function Dashboard({ onLogout }: Props) {
                             {hasAnyPerm && <span title="Tiene permiso de ausencia" style={{ fontSize: '0.82rem' }}>✋</span>}
                         </div>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <Pill met={counts.am >= 1 || amPerm} label={`🌅 ${counts.am}/1${amPerm ? ' ✋' : ''}`} />
-                            <Pill met={counts.pm >= 4 || pmPerm} label={`🌙 ${counts.pm}/4${pmPerm ? ' ✋' : ''}`} />
-                            <Pill met={counts.rehearsal >= 2 || rPerm} label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`} />
+                            <Pill met={amMet} label={`🌅 ${counts.am}/2${amPerm ? ' ✋' : ''}`} />
+                            <Pill met={combinedMet} label={combinedLabel} />
+                            <Pill met={rehearsalMet} label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`} />
                         </div>
                     </div>
                 </div>
@@ -383,8 +405,9 @@ export default function Dashboard({ onLogout }: Props) {
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--card-border)' }}>
                                             <th style={{ textAlign: 'left', padding: '4px 8px 8px 0', color: 'var(--text-muted)', fontWeight: 600 }}>Día</th>
-                                            <th style={{ textAlign: 'center', padding: '4px 6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>🌅 AM</th>
-                                            <th style={{ textAlign: 'center', padding: '4px 6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>🌙 PM</th>
+                                            <th style={{ textAlign: 'center', padding: '4px 6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>🌅 5am</th>
+                                            <th style={{ textAlign: 'center', padding: '4px 6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>☀️ 9am</th>
+                                            <th style={{ textAlign: 'center', padding: '4px 6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>🌙 6pm</th>
                                             <th style={{ textAlign: 'center', padding: '4px 6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>🎵 Ens</th>
                                         </tr>
                                     </thead>
@@ -408,6 +431,9 @@ export default function Dashboard({ onLogout }: Props) {
                                                     </td>
                                                     <td style={{ textAlign: 'center', padding: '7px 6px' }}>
                                                         <WeekCell value={day.am_prayer} />
+                                                    </td>
+                                                    <td style={{ textAlign: 'center', padding: '7px 6px' }}>
+                                                        <WeekCell value={day.morning_prayer} />
                                                     </td>
                                                     <td style={{ textAlign: 'center', padding: '7px 6px' }}>
                                                         <WeekCell value={day.pm_prayer} />
@@ -530,10 +556,13 @@ export default function Dashboard({ onLogout }: Props) {
                                 Requisitos — semana {weekLabel}
                             </p>
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                <Pill met={true} label="🌅 Oración 5am ≥ 1" />
-                                <Pill met={true} label="🌙 Oración 6pm ≥ 4" />
+                                <Pill met={true} label="🌅 5am ≥ 2" />
+                                <Pill met={true} label="Combinadas ≥ 4" />
                                 <Pill met={true} label="🎵 Ensayo ≥ 2" />
                             </div>
+                            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '5px' }}>
+                                ♀ Combinadas = 🌙6pm + ☀️9am &nbsp;·&nbsp; ♂ Combinadas = 🌅5am + 🌙6pm
+                            </p>
                         </div>
 
                         {/* ── SECCIÓN ELEGIBLES (abierta por defecto) ── */}
@@ -659,6 +688,7 @@ export default function Dashboard({ onLogout }: Props) {
                     const SESSION_META: Record<string, { label: string; emoji: string }> = {
                         am_prayer: { label: 'Oración 5am', emoji: '🌅' },
                         pm_prayer: { label: 'Oración 6pm', emoji: '🌙' },
+                        morning_prayer: { label: 'Oración 9am', emoji: '☀️' },
                         rehearsal: { label: 'Ensayo', emoji: '🎵' },
                     };
                     const formatTime12h = (utcDate: string) => {

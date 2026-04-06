@@ -50,7 +50,7 @@ model Permission {
   id          Int      @id @default(autoincrement())
   memberId    Int
   member      Member   @relation(fields: [memberId], references: [id])
-  sessionType String   // am_prayer | pm_prayer | rehearsal
+  sessionType String   // am_prayer | pm_prayer | morning_prayer | rehearsal
   weekStart   DateTime // domingo de esa semana a medianoche UTC
   reason      String?
   grantedBy   String   // username del encargado

@@ -27,12 +27,14 @@ interface Props {
 const ROLE_LABELS: Record<string, string> = {
   am_prayer: 'Oración 5am',
   pm_prayer: 'Oración 6pm',
+  morning_prayer: 'Oración 9am',
   rehearsal: 'Ensayo',
 };
 
 const ROLE_EMOJI: Record<string, string> = {
   am_prayer: '🌅',
   pm_prayer: '🌙',
+  morning_prayer: '☀️',
   rehearsal: '🎵',
 };
 
@@ -178,7 +180,9 @@ export default function Today({ role, onLogout, onBack }: Props) {
         api.get(`/sessions/date/${dateStr}?type=${role}`),
       ]);
 
-      setMembers(membersRes.data);
+      // morning_prayer es exclusivo para mujeres
+      const allMembers = membersRes.data;
+      setMembers(role === 'morning_prayer' ? allMembers.filter((m: Member) => m.gender === 'F') : allMembers);
       setSessionId(sessionRes.data.id);
 
       const presentIds = new Set<number>(
@@ -241,9 +245,9 @@ export default function Today({ role, onLogout, onBack }: Props) {
         const dateStr = toLocalDateString(selectedDate);
         const eligRes = await api.get(`/eligibility/${dateStr}`);
         const eligData = eligRes.data as Array<{
-          member: { name: string };
-          counts: { am: number; pm: number; rehearsal: number };
-          permissions?: { am_prayer: boolean; pm_prayer: boolean; rehearsal: boolean };
+          member: { name: string; gender: string };
+          counts: { am: number; pm: number; morning: number; rehearsal: number };
+          permissions?: { am_prayer: boolean; pm_prayer: boolean; morning_prayer: boolean; rehearsal: boolean };
           isEligible: boolean;
         }>;
 
@@ -251,16 +255,25 @@ export default function Today({ role, onLogout, onBack }: Props) {
 
         const atRisk = eligData.filter(d => {
           if (d.isEligible) return false;
-          const { am, pm, rehearsal } = d.counts;
-          const perms = d.permissions ?? { am_prayer: false, pm_prayer: false, rehearsal: false };
-          const amMet = perms.am_prayer || am >= 1;
-          const pmMet = perms.pm_prayer || pm >= 4;
+          const { am, pm, morning, rehearsal } = d.counts;
+          const perms = d.permissions ?? { am_prayer: false, pm_prayer: false, morning_prayer: false, rehearsal: false };
+          const isFemale = d.member.gender === 'F';
+
+          const amMet = perms.am_prayer || am >= 2;
+          const combinedMet = isFemale
+            ? (perms.pm_prayer || perms.morning_prayer || (pm + morning >= 4))
+            : (perms.am_prayer || perms.pm_prayer || (am + pm >= 4));
           const rehearsalMet = perms.rehearsal || rehearsal >= 2;
-          const notMet = [amMet, pmMet, rehearsalMet].filter(m => !m).length;
+          const rules = [amMet, combinedMet, rehearsalMet];
+          const notMet = rules.filter(m => !m).length;
           if (notMet !== 1) return false;
-          if (!amMet) return true;           // am + 1 >= 1 siempre
-          if (!pmMet) return pm >= 3;        // necesita 1 más (pm=3 → 4)
-          return rehearsal >= 1;             // necesita 1 más (rehearsal=1 → 2)
+          // Necesita exactamente 1 asistencia más en el requisito faltante
+          if (!amMet) return am >= 1;          // am=1 → +1 = 2
+          if (!combinedMet) {
+            const combined = isFemale ? pm + morning : am + pm;
+            return combined >= 3;              // combined=3 → +1 = 4
+          }
+          return rehearsal >= 1;               // rehearsal=1 → +1 = 2
         }).map(d => d.member.name);
 
         if (eligible.length > 0 || atRisk.length > 0) {

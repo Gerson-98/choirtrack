@@ -7,9 +7,9 @@ import { LogOut, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface EligibilityItem {
-  member: { id: number; name: string; voice: string };
-  counts: { am: number; pm: number; rehearsal: number };
-  permissions?: { am_prayer: boolean; pm_prayer: boolean; rehearsal: boolean };
+  member: { id: number; name: string; voice: string; gender: string };
+  counts: { am: number; pm: number; morning: number; rehearsal: number };
+  permissions?: { am_prayer: boolean; pm_prayer: boolean; morning_prayer: boolean; rehearsal: boolean };
   isEligible: boolean;
 }
 
@@ -93,8 +93,20 @@ export default function Eligibility({ onLogout }: Props) {
     const initials = member.name.split(' ').slice(0, 2).map(n => n[0]).join('');
     const amPerm = perms?.am_prayer ?? false;
     const pmPerm = perms?.pm_prayer ?? false;
+    const mornPerm = perms?.morning_prayer ?? false;
     const rPerm = perms?.rehearsal ?? false;
-    const hasAnyPerm = amPerm || pmPerm || rPerm;
+    const hasAnyPerm = amPerm || pmPerm || mornPerm || rPerm;
+    const isFemale = member.gender === 'F';
+
+    const amMet = amPerm || counts.am >= 2;
+    const combinedCount = isFemale ? counts.pm + counts.morning : counts.am + counts.pm;
+    const combinedPerm = isFemale ? (pmPerm || mornPerm) : (amPerm || pmPerm);
+    const combinedMet = combinedPerm || combinedCount >= 4;
+    const rehearsalMet = rPerm || counts.rehearsal >= 2;
+
+    const combinedLabel = isFemale
+      ? `🌙☀️ ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`
+      : `🌅🌙 ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`;
 
     return (
       <div style={{
@@ -122,18 +134,9 @@ export default function Eligibility({ onLogout }: Props) {
               )}
             </div>
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-              <Pill
-                met={counts.am >= 1 || amPerm}
-                label={`🌅 ${counts.am}/1${amPerm ? ' ✋' : ''}`}
-              />
-              <Pill
-                met={counts.pm >= 4 || pmPerm}
-                label={`🌙 ${counts.pm}/4${pmPerm ? ' ✋' : ''}`}
-              />
-              <Pill
-                met={counts.rehearsal >= 2 || rPerm}
-                label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`}
-              />
+              <Pill met={amMet} label={`🌅 ${counts.am}/2${amPerm ? ' ✋' : ''}`} />
+              <Pill met={combinedMet} label={combinedLabel} />
+              <Pill met={rehearsalMet} label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`} />
             </div>
           </div>
         </div>
@@ -185,11 +188,14 @@ export default function Eligibility({ onLogout }: Props) {
             Requisitos semana actual
           </p>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <Pill met={true} label="🌅 Oración 5am ≥ 1" />
-            <Pill met={true} label="🌙 Oración 6pm ≥ 4" />
+            <Pill met={true} label="🌅 5am ≥ 2" />
+            <Pill met={true} label="Combinadas ≥ 4" />
             <Pill met={true} label="🎵 Ensayo ≥ 2" />
           </div>
           <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+            ♀ Combinadas = 🌙6pm + ☀️9am · ♂ Combinadas = 🌅5am + 🌙6pm
+          </p>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
             ✋ = Permiso de ausencia (requisito automáticamente cumplido)
           </p>
         </div>

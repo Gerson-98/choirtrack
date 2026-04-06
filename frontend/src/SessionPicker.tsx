@@ -20,6 +20,7 @@ export default function SessionPicker({ onLogout }: Props) {
 
     const [amStatus, setAmStatus] = useState<SessionStatus>({ loading: true, count: null });
     const [pmStatus, setPmStatus] = useState<SessionStatus>({ loading: true, count: null });
+    const [morningStatus, setMorningStatus] = useState<SessionStatus>({ loading: true, count: null });
 
     useEffect(() => {
         async function checkSessions() {
@@ -28,11 +29,14 @@ export default function SessionPicker({ onLogout }: Props) {
                 const sessions: { type: string; count: number }[] = res.data.sessions;
                 const am = sessions.find(s => s.type === 'am_prayer');
                 const pm = sessions.find(s => s.type === 'pm_prayer');
+                const morning = sessions.find(s => s.type === 'morning_prayer');
                 setAmStatus({ loading: false, count: am?.count ?? 0 });
                 setPmStatus({ loading: false, count: pm?.count ?? 0 });
+                setMorningStatus({ loading: false, count: morning?.count ?? 0 });
             } catch {
                 setAmStatus({ loading: false, count: null });
                 setPmStatus({ loading: false, count: null });
+                setMorningStatus({ loading: false, count: null });
             }
         }
         checkSessions();
@@ -160,6 +164,38 @@ export default function SessionPicker({ onLogout }: Props) {
                             Requisito: asistir al menos 4 veces por semana
                         </div>
                         <StatusBadge status={pmStatus} />
+                    </div>
+                </button>
+
+                {/* Botón Oración 9am (solo mujeres) */}
+                <button
+                    onClick={() => navigate('/session/morning_prayer')}
+                    style={{
+                        width: '100%',
+                        padding: '24px 20px',
+                        borderRadius: '16px',
+                        background: '#FFFFFF',
+                        border: '1.5px solid rgba(240,180,50,0.4)',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '20px',
+                        transition: 'all 0.15s',
+                        textAlign: 'left',
+                    }}
+                    onMouseOver={e => (e.currentTarget.style.background = 'rgba(240,180,50,0.06)')}
+                    onMouseOut={e => (e.currentTarget.style.background = '#FFFFFF')}
+                >
+                    <span style={{ fontSize: '2.4rem' }}>☀️</span>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                            Oración 9am
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                            Solo mujeres · Combinada con 6pm para requisito semanal
+                        </div>
+                        <StatusBadge status={morningStatus} />
                     </div>
                 </button>
             </div>

@@ -30,6 +30,7 @@ interface Props {
 const SESSION_LABELS: Record<string, string> = {
   am_prayer: '🌅 Oración 5am',
   pm_prayer: '🌙 Oración 6pm',
+  morning_prayer: '☀️ Oración 9am',
   rehearsal: '🎵 Ensayo',
 };
 
@@ -240,6 +241,7 @@ export default function Permissions({ onLogout }: Props) {
                   <option value="rehearsal">🎵 Ensayo</option>
                   <option value="am_prayer">🌅 Oración 5am</option>
                   <option value="pm_prayer">🌙 Oración 6pm</option>
+                  <option value="morning_prayer">☀️ Oración 9am</option>
                 </select>
               </div>
 

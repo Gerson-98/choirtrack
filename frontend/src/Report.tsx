@@ -8,16 +8,16 @@ import api from './api';
 import { toLocalDateString } from './utils';
 
 interface ReportMember {
-  member: { id: number; name: string; voice: string };
-  counts: { am: number; pm: number; rehearsal: number };
-  permissions?: { am_prayer: boolean; pm_prayer: boolean; rehearsal: boolean };
+  member: { id: number; name: string; voice: string; gender: string };
+  counts: { am: number; pm: number; morning: number; rehearsal: number };
+  permissions?: { am_prayer: boolean; pm_prayer: boolean; morning_prayer: boolean; rehearsal: boolean };
   isEligible: boolean;
 }
 
 interface ReportData {
   weekStart: string;
   weekEnd: string;
-  sessionCounts: { am_prayer: number; pm_prayer: number; rehearsal: number };
+  sessionCounts: { am_prayer: number; pm_prayer: number; morning_prayer: number; rehearsal: number };
   members: ReportMember[];
 }
 
@@ -99,7 +99,7 @@ export default function Report({ onLogout }: Props) {
     }
   };
 
-  const sc = data?.sessionCounts ?? { am_prayer: 0, pm_prayer: 0, rehearsal: 0 };
+  const sc = data?.sessionCounts ?? { am_prayer: 0, pm_prayer: 0, morning_prayer: 0, rehearsal: 0 };
 
   return (
     <>
@@ -206,6 +206,7 @@ export default function Report({ onLogout }: Props) {
               <div style={{ display: 'flex', gap: '16px', marginTop: '10px', flexWrap: 'wrap' }}>
                 {[
                   { label: '🌅 5am', count: sc.am_prayer },
+                  { label: '☀️ 9am', count: sc.morning_prayer },
                   { label: '🌙 6pm', count: sc.pm_prayer },
                   { label: '🎵 Ensayos', count: sc.rehearsal },
                 ].map(({ label, count }) => (
@@ -223,19 +224,21 @@ export default function Report({ onLogout }: Props) {
 
             {/* Cabecera de tabla */}
             <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 70px 65px 65px 75px 50px',
+              display: 'grid', gridTemplateColumns: '1fr 60px 50px 50px 50px 60px 90px 40px',
               padding: '8px 14px',
               background: '#F9FAFB',
               borderBottom: '1px solid #E5E7EB',
-              fontSize: '0.7rem', fontWeight: 700,
+              fontSize: '0.65rem', fontWeight: 700,
               color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em',
             }}>
               <div>Miembro</div>
               <div style={{ textAlign: 'center' }}>Voz</div>
-              <div style={{ textAlign: 'center' }}>🌅 5am</div>
-              <div style={{ textAlign: 'center' }}>🌙 6pm</div>
-              <div style={{ textAlign: 'center' }}>🎵 Ensayo</div>
-              <div style={{ textAlign: 'center' }}>Estado</div>
+              <div style={{ textAlign: 'center' }}>🌅</div>
+              <div style={{ textAlign: 'center' }}>☀️</div>
+              <div style={{ textAlign: 'center' }}>🌙</div>
+              <div style={{ textAlign: 'center' }}>🎵</div>
+              <div style={{ textAlign: 'center' }}>Comb.</div>
+              <div style={{ textAlign: 'center' }}></div>
             </div>
 
             {/* Filas */}
@@ -248,11 +251,19 @@ export default function Report({ onLogout }: Props) {
                 const { member, counts, permissions: perms, isEligible } = item;
                 const amPerm = perms?.am_prayer ?? false;
                 const pmPerm = perms?.pm_prayer ?? false;
+                const mornPerm = perms?.morning_prayer ?? false;
                 const rPerm = perms?.rehearsal ?? false;
+                const isFemale = member.gender === 'F';
+
+                const combinedCount = isFemale ? counts.pm + counts.morning : counts.am + counts.pm;
+                const combinedPerm = isFemale ? (pmPerm || mornPerm) : (amPerm || pmPerm);
+                const combinedMet = combinedPerm || combinedCount >= 4;
+                const amMet = amPerm || counts.am >= 2;
+                const rehearsalMet = rPerm || counts.rehearsal >= 2;
 
                 const cellStyle = (met: boolean, hasPerm: boolean) => ({
                   textAlign: 'center' as const,
-                  fontSize: '0.85rem', fontWeight: 600,
+                  fontSize: '0.8rem', fontWeight: 600,
                   color: hasPerm ? '#6C63FF' : met ? '#10B981' : '#EF4444',
                 });
 
@@ -260,7 +271,7 @@ export default function Report({ onLogout }: Props) {
                   <div
                     key={member.id}
                     style={{
-                      display: 'grid', gridTemplateColumns: '1fr 70px 65px 65px 75px 50px',
+                      display: 'grid', gridTemplateColumns: '1fr 60px 50px 50px 50px 60px 90px 40px',
                       padding: '10px 14px',
                       borderTop: idx > 0 ? '1px solid #F5F5F5' : 'none',
                       background: isEligible ? 'rgba(16,185,129,0.03)' : '#FAFAFA',
@@ -268,13 +279,13 @@ export default function Report({ onLogout }: Props) {
                     }}
                   >
                     {/* Nombre */}
-                    <div style={{ fontSize: '0.88rem', fontWeight: 500, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {member.name}
                     </div>
                     {/* Voz */}
                     <div style={{ textAlign: 'center' }}>
                       <span style={{
-                        fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '10px',
+                        fontSize: '0.6rem', fontWeight: 700, padding: '2px 5px', borderRadius: '10px',
                         background: `${VOICE_COLORS[member.voice] ?? '#aaa'}22`,
                         color: VOICE_COLORS[member.voice] ?? '#aaa',
                       }}>
@@ -282,19 +293,30 @@ export default function Report({ onLogout }: Props) {
                       </span>
                     </div>
                     {/* 5am */}
-                    <div style={cellStyle(counts.am >= 1 || amPerm, amPerm)}>
-                      {amPerm ? '✋' : `${counts.am}/${sc.am_prayer}`}
+                    <div style={cellStyle(amMet, amPerm)}>
+                      {amPerm ? '✋' : counts.am}
+                    </div>
+                    {/* 9am */}
+                    <div style={cellStyle(true, mornPerm)}>
+                      {isFemale ? (mornPerm ? '✋' : counts.morning) : <span style={{ color: '#D1D5DB' }}>—</span>}
                     </div>
                     {/* 6pm */}
-                    <div style={cellStyle(counts.pm >= 4 || pmPerm, pmPerm)}>
-                      {pmPerm ? '✋' : `${counts.pm}/${sc.pm_prayer}`}
+                    <div style={cellStyle(true, pmPerm)}>
+                      {pmPerm ? '✋' : counts.pm}
                     </div>
                     {/* Ensayo */}
-                    <div style={cellStyle(counts.rehearsal >= 2 || rPerm, rPerm)}>
-                      {rPerm ? '✋' : `${counts.rehearsal}/${sc.rehearsal}`}
+                    <div style={cellStyle(rehearsalMet, rPerm)}>
+                      {rPerm ? '✋' : counts.rehearsal}
+                    </div>
+                    {/* Combinadas */}
+                    <div style={cellStyle(combinedMet, combinedPerm)}>
+                      {combinedPerm ? '✋' : `${combinedCount}/4`}
+                      <span style={{ fontSize: '0.6rem', fontWeight: 400, marginLeft: '2px' }}>
+                        {isFemale ? '♀' : '♂'}
+                      </span>
                     </div>
                     {/* Estado */}
-                    <div style={{ textAlign: 'center', fontSize: '1rem' }}>
+                    <div style={{ textAlign: 'center', fontSize: '0.9rem' }}>
                       {isEligible ? '✅' : '❌'}
                     </div>
                   </div>

@@ -177,30 +177,55 @@ export class AppService {
     return ordered.map((member) => {
       let amCount = 0;
       let pmCount = 0;
+      let morningCount = 0;
       let rehearsalCount = 0;
 
       member.attendances.forEach((att) => {
         if (att.session.type === 'am_prayer') amCount++;
         if (att.session.type === 'pm_prayer') pmCount++;
+        if (att.session.type === 'morning_prayer') morningCount++;
         if (att.session.type === 'rehearsal') rehearsalCount++;
       });
 
       const memberPerms = permMap.get(member.id) ?? new Set<string>();
       const hasAmPerm = memberPerms.has('am_prayer');
       const hasPmPerm = memberPerms.has('pm_prayer');
+      const hasMorningPerm = memberPerms.has('morning_prayer');
       const hasRehearsalPerm = memberPerms.has('rehearsal');
 
-      const isEligible =
-        (hasAmPerm || amCount >= 1) &&
-        (hasPmPerm || pmCount >= 4) &&
-        (hasRehearsalPerm || rehearsalCount >= 2);
+      const isFemale = member.gender === 'F';
+
+      let isEligible: boolean;
+
+      if (isFemale) {
+        // Mujeres:
+        // 1. am_prayer >= 2 estricto (o permiso am_prayer)
+        const amMet = hasAmPerm || amCount >= 2;
+        // 2. pm_prayer + morning_prayer >= 4 combinadas (o permiso pm/morning)
+        const combinedMet = hasPmPerm || hasMorningPerm || (pmCount + morningCount >= 4);
+        // 3. rehearsal >= 2 (o permiso)
+        const rehearsalMet = hasRehearsalPerm || rehearsalCount >= 2;
+
+        isEligible = amMet && combinedMet && rehearsalMet;
+      } else {
+        // Hombres:
+        // 1. am_prayer >= 2 estricto (o permiso am_prayer)
+        const amStrictMet = hasAmPerm || amCount >= 2;
+        // 2. am_prayer + pm_prayer >= 4 combinadas (o permiso am/pm)
+        const combinedMet = hasAmPerm || hasPmPerm || (amCount + pmCount >= 4);
+        // 3. rehearsal >= 2 (o permiso)
+        const rehearsalMet = hasRehearsalPerm || rehearsalCount >= 2;
+
+        isEligible = amStrictMet && combinedMet && rehearsalMet;
+      }
 
       return {
-        member: { id: member.id, name: member.name, voice: member.voice },
-        counts: { am: amCount, pm: pmCount, rehearsal: rehearsalCount },
+        member: { id: member.id, name: member.name, voice: member.voice, gender: member.gender },
+        counts: { am: amCount, pm: pmCount, morning: morningCount, rehearsal: rehearsalCount },
         permissions: {
           am_prayer: hasAmPerm,
           pm_prayer: hasPmPerm,
+          morning_prayer: hasMorningPerm,
           rehearsal: hasRehearsalPerm,
         },
         isEligible,
@@ -226,6 +251,7 @@ export class AppService {
     const sessionCounts: Record<string, number> = {
       am_prayer: 0,
       pm_prayer: 0,
+      morning_prayer: 0,
       rehearsal: 0,
     };
     for (const s of sessions) {
@@ -271,7 +297,7 @@ export class AppService {
     const sessions = await this.prisma.session.findMany({
       where: {
         date: { gte: weekStart, lt: weekEnd },
-        type: { in: ['am_prayer', 'pm_prayer', 'rehearsal'] },
+        type: { in: ['am_prayer', 'pm_prayer', 'morning_prayer', 'rehearsal'] },
       },
       include: { attendances: { where: { isPresent: true } } },
     });
@@ -310,6 +336,7 @@ export class AppService {
         dayOfWeek: dow,
         am_prayer: getCount('am_prayer'),
         pm_prayer: getCount('pm_prayer'),
+        morning_prayer: getCount('morning_prayer'),
         rehearsal: rehearsalApplies ? getCount('rehearsal') : ('N/A' as const),
       };
     });
@@ -320,7 +347,7 @@ export class AppService {
   // Vista del director: todas las sesiones de hoy + conteos
   async getDirectorToday() {
     const today = toGuatemalaDate();
-    const sessionTypes = ['am_prayer', 'pm_prayer', 'rehearsal'];
+    const sessionTypes = ['am_prayer', 'pm_prayer', 'morning_prayer', 'rehearsal'];
     const totalMembers = await this.prisma.member.count();
 
     const sessions = await Promise.all(
