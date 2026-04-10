@@ -180,9 +180,8 @@ export default function Today({ role, onLogout, onBack }: Props) {
         api.get(`/sessions/date/${dateStr}?type=${role}`),
       ]);
 
-      // morning_prayer es exclusivo para mujeres
       const allMembers = membersRes.data;
-      setMembers(role === 'morning_prayer' ? allMembers.filter((m: Member) => m.gender === 'F') : allMembers);
+      setMembers(allMembers);
       setSessionId(sessionRes.data.id);
 
       const presentIds = new Set<number>(

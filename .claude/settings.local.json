@@ -4,7 +4,11 @@
       "Bash(npx prisma:*)",
       "Bash(find /c/Users/gerso/.gemini/antigravity/scratch/choirtrack/backend/src -type f -name *.ts)",
       "Bash(npm run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(node -e ':*)",
+      "Bash(npx ts-node -e ':*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsx -e ':*)"
     ]
   }
 }
