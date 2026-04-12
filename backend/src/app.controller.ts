@@ -42,7 +42,7 @@ export class AppController {
     @Param('date') date: string,
     @Query('type') type?: string,
   ) {
-    return this.appService.getSession(type || req.user.role, date, true);
+    return this.appService.getSession(type || req.user.role, date, false);
   }
 
   // Toggle individual (mantener compatibilidad)
@@ -59,10 +59,16 @@ export class AppController {
   @Post('attendance/save')
   async saveAttendance(
     @Request() req: any,
-    @Body() body: { sessionId: number; presentMemberIds: number[] },
+    @Body() body: { sessionId?: number | null; presentMemberIds: number[]; date?: string; role?: string },
   ) {
+    let sessionId = body.sessionId ?? null;
+    if (!sessionId) {
+      const sessionRole = body.role ?? req.user.role;
+      const session = await this.appService.getSession(sessionRole, body.date, true);
+      sessionId = session.id!;
+    }
     return this.appService.saveAttendance(
-      body.sessionId,
+      sessionId,
       body.presentMemberIds,
       req.user.username,
     );

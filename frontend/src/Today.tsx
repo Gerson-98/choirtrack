@@ -222,15 +222,13 @@ export default function Today({ role, onLogout, onBack }: Props) {
   };
 
   const handleSave = async () => {
-    if (!sessionId) {
-      setSaveError('No se pudo obtener la sesión. Recarga la página.');
-      return;
-    }
     setSaving(true);
     setSaveError(null);
     try {
       await api.post('/attendance/save', {
-        sessionId,
+        sessionId: sessionId ?? undefined,
+        date: toLocalDateString(selectedDate),
+        role,
         presentMemberIds: Array.from(selected),
       });
       const username = getUsernameFromToken();
