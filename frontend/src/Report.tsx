@@ -335,15 +335,13 @@ export default function Report({ onLogout }: Props) {
                         const pmPerm = perms?.pm_prayer ?? false;
                         const mornPerm = perms?.morning_prayer ?? false;
                         const rPerm = perms?.rehearsal ?? false;
-                        const isFemale = member.gender === 'F';
 
+                        // Lógica unificada (sin distinción de género)
                         const amMet = amPerm || counts.am >= 2;
+                        const totalPrayer = counts.am + counts.pm + counts.morning
+                          + (pmPerm ? 1 : 0) + (mornPerm ? 1 : 0);
+                        const totalMet = totalPrayer >= 6;
                         const rehearsalMet = rPerm || counts.rehearsal >= 2;
-                        const combinedCount = isFemale ? counts.pm + counts.morning : counts.am + counts.pm;
-                        const combinedPerm = isFemale ? (pmPerm || mornPerm) : (amPerm || pmPerm);
-                        const combinedMet = combinedPerm || combinedCount >= 4;
-                        const pmMet = combinedMet; // 6pm contributes to combined
-                        const mornMet = combinedMet;
 
                         return (
                           <div
@@ -371,13 +369,13 @@ export default function Report({ onLogout }: Props) {
                               {amPerm ? '✋' : counts.am}
                             </div>
 
-                            {/* 9am — solo mujeres */}
-                            <div style={isFemale ? numCell(mornMet, mornPerm) : { textAlign: 'center' as const, color: '#D1D5DB', fontSize: '0.75rem' }}>
-                              {isFemale ? (mornPerm ? '✋' : counts.morning) : '—'}
+                            {/* 9am */}
+                            <div style={numCell(totalMet, mornPerm)}>
+                              {mornPerm ? '✋' : counts.morning}
                             </div>
 
                             {/* 6pm */}
-                            <div style={numCell(pmMet, pmPerm)}>
+                            <div style={numCell(totalMet, pmPerm)}>
                               {pmPerm ? '✋' : counts.pm}
                             </div>
 

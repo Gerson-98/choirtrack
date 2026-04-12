@@ -15,7 +15,7 @@ interface SessionSummary {
 
 interface EligibilityData {
     member: { id: number; name: string; voice: string; gender: string };
-    counts: { am: number; pm: number; morning: number; rehearsal: number };
+    counts: { am: number; pm: number; morning: number; rehearsal: number; total: number };
     permissions?: { am_prayer: boolean; pm_prayer: boolean; morning_prayer: boolean; rehearsal: boolean };
     isEligible: boolean;
 }
@@ -226,11 +226,10 @@ export default function Dashboard({ onLogout }: Props) {
                     ctx.fillRect(20, y + 2, 3, rowH - 4);
                     ctx.fillStyle = '#ffffff'; ctx.font = '14px system-ui';
                     ctx.fillText(member.name, 36, y + rowH / 2 + 5);
-                    const isFem = member.gender === 'F';
-                    const combinedCt = isFem ? counts.pm + counts.morning : counts.am + counts.pm;
+                    const canvasTotal = (counts.total ?? counts.am + counts.pm + counts.morning);
                     const pillData = [
                         { label: `🌅 ${counts.am}/2`, met: counts.am >= 2 },
-                        { label: `${isFem ? '🌙☀️' : '🌅🌙'} ${combinedCt}/4`, met: combinedCt >= 4 },
+                        { label: `🌅🌙☀️ ${canvasTotal}/6`, met: canvasTotal >= 6 },
                         { label: `🎵 ${counts.rehearsal}/2`, met: counts.rehearsal >= 2 },
                     ];
                     let px = 340;
@@ -273,18 +272,13 @@ export default function Dashboard({ onLogout }: Props) {
         const mornPerm = perms?.morning_prayer ?? false;
         const rPerm = perms?.rehearsal ?? false;
         const hasAnyPerm = amPerm || pmPerm || mornPerm || rPerm;
-        const isFemale = member.gender === 'F';
 
-        // Nueva lógica de pills según género
-        const amMet = amPerm || counts.am >= 2;
-        const combinedCount = isFemale ? counts.pm + counts.morning : counts.am + counts.pm;
-        const combinedPerm = isFemale ? (pmPerm || mornPerm) : (amPerm || pmPerm);
-        const combinedMet = combinedPerm || combinedCount >= 4;
-        const rehearsalMet = rPerm || counts.rehearsal >= 2;
-
-        const combinedLabel = isFemale
-            ? `🌙☀️ ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`
-            : `🌅🌙 ${combinedCount}/4${combinedPerm ? ' ✋' : ''}`;
+        // Lógica unificada (sin distinción de género)
+        const req1Met = amPerm || counts.am >= 2;
+        const totalPrayer = (counts.total ?? counts.am + counts.pm + counts.morning)
+            + (pmPerm ? 1 : 0) + (mornPerm ? 1 : 0);
+        const req2Met = totalPrayer >= 6;
+        const req3Met = rPerm || counts.rehearsal >= 2;
 
         return (
             <div style={{
@@ -310,9 +304,9 @@ export default function Dashboard({ onLogout }: Props) {
                             {hasAnyPerm && <span title="Tiene permiso de ausencia" style={{ fontSize: '0.82rem' }}>✋</span>}
                         </div>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <Pill met={amMet} label={`🌅 ${counts.am}/2${amPerm ? ' ✋' : ''}`} />
-                            <Pill met={combinedMet} label={combinedLabel} />
-                            <Pill met={rehearsalMet} label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`} />
+                            <Pill met={req1Met} label={`🌅 ${counts.am}/2${amPerm ? ' ✋' : ''}`} />
+                            <Pill met={req2Met} label={`🌅🌙☀️ ${totalPrayer}/6`} />
+                            <Pill met={req3Met} label={`🎵 ${counts.rehearsal}/2${rPerm ? ' ✋' : ''}`} />
                         </div>
                     </div>
                 </div>

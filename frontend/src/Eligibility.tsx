@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface EligibilityItem {
   member: { id: number; name: string; voice: string; gender: string };
-  counts: { am: number; pm: number; morning: number; rehearsal: number };
+  counts: { am: number; pm: number; morning: number; rehearsal: number; total: number };
   permissions?: { am_prayer: boolean; pm_prayer: boolean; morning_prayer: boolean; rehearsal: boolean };
   isEligible: boolean;
 }
@@ -115,13 +115,14 @@ export default function Eligibility({ onLogout }: Props) {
     const mornPerm = perms?.morning_prayer ?? false;
     const rPerm = perms?.rehearsal ?? false;
     const hasAnyPerm = amPerm || pmPerm || mornPerm || rPerm;
-    const isFemale = member.gender === 'F';
 
-    const amMet = amPerm || counts.am >= 2;
-    const combinedCount = isFemale ? counts.pm + counts.morning : counts.am + counts.pm;
-    const combinedPerm = isFemale ? (pmPerm || mornPerm) : (amPerm || pmPerm);
-    const combinedMet = combinedPerm || combinedCount >= 4;
-    const rehearsalMet = rPerm || counts.rehearsal >= 2;
+    // Lógica unificada (igual para todos)
+    const req1Met = amPerm || counts.am >= 2;
+    const totalPrayer = (counts.total ?? counts.am + counts.pm + counts.morning)
+      + (pmPerm ? 1 : 0) + (mornPerm ? 1 : 0);
+    const req2Met = totalPrayer >= 6;
+    const req3Met = rPerm || counts.rehearsal >= 2;
+    const anyPrayerPerm = pmPerm || mornPerm;
 
     return (
       <div style={{
@@ -170,23 +171,23 @@ export default function Eligibility({ onLogout }: Props) {
         }}>
           <StatCell
             icon="🌅"
-            label="5am min."
+            label="5am ≥2"
             value={`${counts.am}/2`}
-            met={amMet}
+            met={req1Met}
             hasPerm={amPerm}
           />
           <StatCell
-            icon={isFemale ? '🌙☀️' : '🌅🌙'}
-            label="comb. ≥4"
-            value={`${combinedCount}/4`}
-            met={combinedMet}
-            hasPerm={combinedPerm}
+            icon="🌅🌙☀️"
+            label="total ≥6"
+            value={`${totalPrayer}/6`}
+            met={req2Met}
+            hasPerm={anyPrayerPerm}
           />
           <StatCell
             icon="🎵"
-            label="ensayo"
+            label="ensayo ≥2"
             value={`${counts.rehearsal}/2`}
-            met={rehearsalMet}
+            met={req3Met}
             hasPerm={rPerm}
           />
         </div>
@@ -315,20 +316,10 @@ export default function Eligibility({ onLogout }: Props) {
           <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Requisitos esta semana
           </p>
-          {/* Dos columnas para que no se amontone */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              <span style={{ fontWeight: 600 }}>♀ Mujeres</span><br />
-              🌅 5am: ≥ 2<br />
-              🌙☀️ comb.: ≥ 4 (6pm + 9am)<br />
-              🎵 Ensayo: ≥ 2
-            </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              <span style={{ fontWeight: 600 }}>♂ Hombres</span><br />
-              🌅 5am: ≥ 2<br />
-              🌅🌙 comb.: ≥ 4 (5am + 6pm)<br />
-              🎵 Ensayo: ≥ 2
-            </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.8 }}>
+            🌅 <strong>5am estricto:</strong> ≥ 2 asistencias<br />
+            🌅🌙☀️ <strong>Total oraciones:</strong> ≥ 6 (5am + 6pm + 9am)<br />
+            🎵 <strong>Ensayo:</strong> ≥ 2 asistencias
           </div>
           <p style={{ fontSize: '0.68rem', color: '#9CA3AF', marginTop: '6px' }}>
             ✋ = Permiso de ausencia · celdas con borde <span style={{ color: '#6C63FF' }}>morado</span> = permiso activo

@@ -193,35 +193,32 @@ export class AppService {
       const hasMorningPerm = memberPerms.has('morning_prayer');
       const hasRehearsalPerm = memberPerms.has('rehearsal');
 
-      const isFemale = member.gender === 'F';
+      // ── Regla unificada (igual para hombres y mujeres) ──────
+      // Req1 — 5am estricto: am_prayer >= 2 (o permiso am)
+      const req1Met = hasAmPerm || amCount >= 2;
 
-      let isEligible: boolean;
+      // Req2 — Total oraciones >= 6: am + pm + morning
+      //   cada permiso pm/morning cuenta como +1 asistencia excusada
+      const totalPrayerCount =
+        amCount + pmCount + morningCount +
+        (hasPmPerm ? 1 : 0) +
+        (hasMorningPerm ? 1 : 0);
+      const req2Met = totalPrayerCount >= 6;
 
-      if (isFemale) {
-        // Mujeres:
-        // 1. am_prayer >= 2 estricto (o permiso am_prayer)
-        const amMet = hasAmPerm || amCount >= 2;
-        // 2. pm_prayer + morning_prayer >= 4 combinadas (o permiso pm/morning)
-        const combinedMet = hasPmPerm || hasMorningPerm || (pmCount + morningCount >= 4);
-        // 3. rehearsal >= 2 (o permiso)
-        const rehearsalMet = hasRehearsalPerm || rehearsalCount >= 2;
+      // Req3 — Ensayos >= 2 (o permiso)
+      const req3Met = hasRehearsalPerm || rehearsalCount >= 2;
 
-        isEligible = amMet && combinedMet && rehearsalMet;
-      } else {
-        // Hombres:
-        // 1. am_prayer >= 2 estricto (o permiso am_prayer)
-        const amStrictMet = hasAmPerm || amCount >= 2;
-        // 2. am_prayer + pm_prayer >= 4 combinadas (o permiso am/pm)
-        const combinedMet = hasAmPerm || hasPmPerm || (amCount + pmCount >= 4);
-        // 3. rehearsal >= 2 (o permiso)
-        const rehearsalMet = hasRehearsalPerm || rehearsalCount >= 2;
-
-        isEligible = amStrictMet && combinedMet && rehearsalMet;
-      }
+      const isEligible = req1Met && req2Met && req3Met;
 
       return {
         member: { id: member.id, name: member.name, voice: member.voice, gender: member.gender },
-        counts: { am: amCount, pm: pmCount, morning: morningCount, rehearsal: rehearsalCount },
+        counts: {
+          am: amCount,
+          pm: pmCount,
+          morning: morningCount,
+          rehearsal: rehearsalCount,
+          total: amCount + pmCount + morningCount,
+        },
         permissions: {
           am_prayer: hasAmPerm,
           pm_prayer: hasPmPerm,

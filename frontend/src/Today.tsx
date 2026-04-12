@@ -256,23 +256,21 @@ export default function Today({ role, onLogout, onBack }: Props) {
           if (d.isEligible) return false;
           const { am, pm, morning, rehearsal } = d.counts;
           const perms = d.permissions ?? { am_prayer: false, pm_prayer: false, morning_prayer: false, rehearsal: false };
-          const isFemale = d.member.gender === 'F';
 
-          const amMet = perms.am_prayer || am >= 2;
-          const combinedMet = isFemale
-            ? (perms.pm_prayer || perms.morning_prayer || (pm + morning >= 4))
-            : (perms.am_prayer || perms.pm_prayer || (am + pm >= 4));
-          const rehearsalMet = perms.rehearsal || rehearsal >= 2;
-          const rules = [amMet, combinedMet, rehearsalMet];
-          const notMet = rules.filter(m => !m).length;
+          // Lógica unificada (sin distinción de género)
+          const req1Met = perms.am_prayer || am >= 2;
+          const totalPrayer = am + pm + morning
+            + (perms.pm_prayer ? 1 : 0)
+            + (perms.morning_prayer ? 1 : 0);
+          const req2Met = totalPrayer >= 6;
+          const req3Met = perms.rehearsal || rehearsal >= 2;
+
+          const notMet = [req1Met, req2Met, req3Met].filter(r => !r).length;
           if (notMet !== 1) return false;
           // Necesita exactamente 1 asistencia más en el requisito faltante
-          if (!amMet) return am >= 1;          // am=1 → +1 = 2
-          if (!combinedMet) {
-            const combined = isFemale ? pm + morning : am + pm;
-            return combined >= 3;              // combined=3 → +1 = 4
-          }
-          return rehearsal >= 1;               // rehearsal=1 → +1 = 2
+          if (!req1Met) return am >= 1;            // am=1 → +1 = 2
+          if (!req2Met) return totalPrayer >= 5;   // total=5 → +1 oración = 6
+          return rehearsal >= 1;                    // rehearsal=1 → +1 = 2
         }).map(d => d.member.name);
 
         if (eligible.length > 0 || atRisk.length > 0) {
